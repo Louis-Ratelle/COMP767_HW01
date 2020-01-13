@@ -1,0 +1,7 @@
+{
+    "python.linting.pycodestyleEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": true,
+    "python.pythonPath": "/Users/michaelbenitah/anaconda3/envs/rl/bin/python",
+    "python.linting.pylintEnabled": false
+}
