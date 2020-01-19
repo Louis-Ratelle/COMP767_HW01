@@ -92,7 +92,7 @@ def plot_reward_distr(data):
 
     plt.axhline(y=0, color='r', linestyle='--')
     plt.subplots_adjust(bottom=0.15, wspace=0.05)
-    plt.show()
+    # plt.show()
 
 
 def plot_line_variance(ax, data, gamma=1):
@@ -111,9 +111,9 @@ def plot_line_variance(ax, data, gamma=1):
     ax.fill_between(len(avg), avg + gamma * std, avg - gamma * std, alpha=0.1)
 
 
-def plot3(args, training_return, regret, reward):
-    fig, axs = plt.subplots(nrows=1, ncols=3, constrained_layout=True)
-    fig.suptitle('This is a somewhat long figure title', fontsize=16)
+def plot3(title, training_return, regret, reward):
+    fig, axs = plt.subplots(nrows=1, ncols=3, constrained_layout=True, figsize=(10,3))
+    fig.suptitle(title, fontsize=12)
 
     plot_line_variance(axs[0], training_return)
     axs[0].set_title('Average training return')
@@ -123,6 +123,7 @@ def plot3(args, training_return, regret, reward):
 
     plot_line_variance(axs[2], reward)
     axs[2].set_title('Policy reward')
+
 
 # #############################################################################
 #
@@ -137,11 +138,11 @@ def softmax(x):
     # (does not change result because of identity softmax(x) = softmax(x + c))
     z = x - max(x)
 
-    return np.exp(z) / np.sum(np.exp(z))
+    return np.exp(z) / np.sum(np.exp(z), axis=0)
 
 
 def random_argmax(vector):
-    '''Helper function to select argmax at random... not just first one.'''
+    '''Select argmax at random... not just first one.'''
 
     index = np.random.choice(np.where(vector == vector.max())[0])
 
@@ -162,7 +163,7 @@ class Bandit():
 
         self.k = k
 
-        self.agent = agent
+        self.agent = self.ucb
         self.agent_param = agent_param
 
         print('Initializing {}-armed bandit...\n\nThe true values q_*(a) for '
@@ -192,7 +193,7 @@ class Bandit():
         return reward
 
     def get_regret(self, action):
- 
+
         regret = (max(self.q_star) - self.q_star[action])
 
         return regret
@@ -200,10 +201,9 @@ class Bandit():
     def boltzmann(self):
         pass
 
-    def ucb(self, action, step, c=1):
+    def ucb(self, step, c=1):
 
-        action = random_argmax(
-            self.Q[action] + c * np.sqrt(np.log(step) / self.N[action]))
+        action = random_argmax(self.Q + c * np.sqrt(np.log(step + 1) / self.N))
         return action
 
     def thompson(self, observation):
@@ -218,8 +218,9 @@ class Bandit():
 
         for i in range(num_steps):
             # choose the best action
-            action = random_argmax(self.Q)
-            print('Training step {} chose action {}'.format(i + 1, action + 1))
+            action = self.agent(i, self.agent_param)
+            # action = random_argmax(self.Q)
+            #print('Training step {} chose action {}'.format(i + 1, action + 1))
 
             # calculate reward and update variables
             R = self.get_reward(action)
@@ -227,20 +228,16 @@ class Bandit():
             self.Q[action] = (self.Q[action]
                               + (R - self.Q[action]) / self.N[action])
 
-        action = random_argmax(self.Q)
-        print('Optimal action: {}'.format(action + 1))
         return action, self.Q[action]
 
     def test(self, action, num_steps):
 
         reward = 0
         for i in range(num_steps):
-            action = self.ucb(action, i + 1, self.agent_param)
             reward += self.get_reward(action)
-            print('Test step {} chose action {}'.format(i + 1, action + 1))
         # calculates average reward
         reward = reward / num_steps
-        print('Optimal action: {}'.format(action + 1))
+        # print('Average reward: {:2f}'.format(reward))
         return reward
 
     def run(self, num_runs, num_steps, training_steps, testing_steps):
@@ -255,19 +252,26 @@ class Bandit():
             t1 = time()
             self._onerun(i, num_steps, training_steps, testing_steps)
             t = time() - t1
-            print('Run {:2d} completed in {:2f} seconds.'.format(i, t))
+            # print('Run {:2d} completed in {:2f} seconds.'.format(i + 1, t))
 
         t = time() - t0
         print('{} runs completed in {:2f} seconds.'.format(num_runs, t))
 
     def _onerun(self, idx, num_steps, training_steps, testing_steps):
+        '''Executes one run of the bandit algorithm. One run executes
+        num_steps in total. Each step in the run executes a number of
+        trainining_steps followed by a number of test steps.
+        
+        num_steps:          number of steps in each run
+        tranining_steps:    number of training steps
+        test_steps:         number of test steps'''
 
         # randomly seeds the generator at the start of each run
         np.random.seed(np.random.randint(2**32))
 
         # initialise variables
         self.Q = np.zeros(self.k)
-        self.N = np.zeros(self.k)
+        self.N = np.ones(self.k)    # avoids division by zero
 
         for i in range(num_steps):
             action, self.training_return[idx, i] = self.train(training_steps)
@@ -293,8 +297,11 @@ def main():
     env.run(args.runs, args.steps, args.training_steps, args.testing_steps)
 
     # plot results
-    plot3(args, env.training_return, env.regret, env.reward)
+    separator = ' '
+    title = separator.join([env.agent.__name__, str(env.agent_param)]) 
+    plot3(title, env.training_return, env.regret, env.reward)
 
+    plt.show()
 
 if __name__ == '__main__':
     main()
