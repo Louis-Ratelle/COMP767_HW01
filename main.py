@@ -2,10 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 
-import random
 import os
 import sys
-import string
 
 from time import time
 from datetime import datetime
@@ -13,12 +11,12 @@ from datetime import datetime
 
 ARMS = 10
 RUNS = 10
-STEPS_PER_RUN = 1000
+STEPS_PER_RUN = 100
 TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
 NOW = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
-SEED = None
+SEED = 197710
 
 # #############################################################################
 #
@@ -108,7 +106,13 @@ def plot_line_variance(ax, data, gamma=1):
     std = np.std(data, axis=0)
 
     ax.plot(avg)
-    ax.fill_between(len(avg), avg + gamma * std, avg - gamma * std, alpha=0.1)
+    ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
+    ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
+    ax.fill_between(range(len(avg)),
+                    avg + gamma * std,
+                    avg - gamma * std,
+                    facecolor='red',
+                    alpha=0.1)
 
 
 def plot3(title, training_return, regret, reward):
@@ -162,8 +166,14 @@ class Bandit():
         np.random.seed(seed)
 
         self.k = k
+        
+        agent_dict = {
+            'ucb': self.ucb,
+            'boltzmann': self.boltzmann,
+            'thompson': self.thompson
+        }
 
-        self.agent = self.ucb
+        self.agent = agent_dict[agent]
         self.agent_param = agent_param
 
         print('Initializing {}-armed bandit...\n\nThe true values q_*(a) for '
@@ -214,11 +224,11 @@ class Bandit():
         action = random_argmax(sampled_means)
         return action
 
-    def train(self, num_steps):
+    def train(self, agent, param, num_steps):
 
         for i in range(num_steps):
             # choose the best action
-            action = self.agent(i, self.agent_param)
+            action = agent(i, param)
             # action = random_argmax(self.Q)
             #print('Training step {} chose action {}'.format(i + 1, action + 1))
 
@@ -240,7 +250,7 @@ class Bandit():
         # print('Average reward: {:2f}'.format(reward))
         return reward
 
-    def run(self, num_runs, num_steps, training_steps, testing_steps):
+    def run(self, agent, param, num_runs, num_steps, training_steps, testing_steps):
 
         t0 = time()
 
@@ -250,14 +260,14 @@ class Bandit():
 
         for i in range(num_runs):
             t1 = time()
-            self._onerun(i, num_steps, training_steps, testing_steps)
+            self._onerun(i, agent, param, num_steps, training_steps, testing_steps)
             t = time() - t1
             # print('Run {:2d} completed in {:2f} seconds.'.format(i + 1, t))
 
         t = time() - t0
         print('{} runs completed in {:2f} seconds.'.format(num_runs, t))
 
-    def _onerun(self, idx, num_steps, training_steps, testing_steps):
+    def _onerun(self, idx, agent, param, num_steps, training_steps, testing_steps):
         '''Executes one run of the bandit algorithm. One run executes
         num_steps in total. Each step in the run executes a number of
         trainining_steps followed by a number of test steps.
@@ -274,7 +284,7 @@ class Bandit():
         self.N = np.ones(self.k)    # avoids division by zero
 
         for i in range(num_steps):
-            action, self.training_return[idx, i] = self.train(training_steps)
+            action, self.training_return[idx, i] = self.train(agent, param, training_steps)
             self.reward[idx, i] = self.test(action, testing_steps)
             self.regret[idx, i] = self.get_regret(action)
 
@@ -294,7 +304,7 @@ def main():
     env = Bandit(agent='ucb', agent_param=1, k=args.arms, seed=args.seed)
 
     # run bandit
-    env.run(args.runs, args.steps, args.training_steps, args.testing_steps)
+    env.run(env.agent, env.agent_param, args.runs, args.steps, args.training_steps, args.testing_steps)
 
     # plot results
     separator = ' '
