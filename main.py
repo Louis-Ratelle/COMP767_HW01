@@ -16,7 +16,8 @@ TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
 NOW = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
-SEED = 197710
+SEED = None
+# SEED = 197710
 
 # #############################################################################
 #
@@ -105,15 +106,14 @@ def plot_line_variance(ax, data, gamma=1):
     avg = np.average(data, axis=0)
     std = np.std(data, axis=0)
 
-    ax.plot(avg)
-    ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
-    ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
+    ax.plot(avg + gamma * std, 'b--', linewidth=0.5)
+    ax.plot(avg - gamma * std, 'b--', linewidth=0.5)
     ax.fill_between(range(len(avg)),
                     avg + gamma * std,
                     avg - gamma * std,
-                    facecolor='red',
+                    facecolor='blue',
                     alpha=0.1)
-
+    ax.plot(avg)
 
 def plot3(title, training_return, regret, reward):
     fig, axs = plt.subplots(nrows=1, ncols=3, constrained_layout=True, figsize=(10,3))
@@ -208,12 +208,28 @@ class Bandit():
 
         return regret
 
-    def boltzmann(self):
-        pass
+    def boltzmann(self, alpha=1):
+
+        # initialise probabilities according to preferences
+        prob = softmax(self.H)
+
+        # select action with highest probability
+        action = random_argmax(prob)
+        other_actions = (np.arange(self.k) != action)
+
+        R = []
+        # update preferences
+        self.H[action] = (self.H[action]
+                          + alpha * (R - avg_return) * (1 - prob[action]))
+        self.H[other_actions] = (self.H[other_actions]
+                                 - alpha * (R - avg_return)
+                                 * prob[other_actions])
+
 
     def ucb(self, step, c=1):
 
-        action = random_argmax(self.Q + c * np.sqrt(np.log(step + 1) / self.N))
+        action = random_argmax(self.Q + c * np.sqrt(np.log(self.run_step) / self.N))
+
         return action
 
     def thompson(self, observation):
@@ -226,19 +242,23 @@ class Bandit():
 
     def train(self, agent, param, num_steps):
 
-        for i in range(num_steps):
+        R = []
+        for step in range(num_steps):
             # choose the best action
-            action = agent(i, param)
+            action = agent(step, param)
             # action = random_argmax(self.Q)
             #print('Training step {} chose action {}'.format(i + 1, action + 1))
 
             # calculate reward and update variables
-            R = self.get_reward(action)
+
+            R.append(self.get_reward(action))
             self.N[action] += 1
             self.Q[action] = (self.Q[action]
-                              + (R - self.Q[action]) / self.N[action])
+                              + (R[-1] - self.Q[action]) / self.N[action])
 
-        return action, self.Q[action]
+        action = random_argmax(self.Q)
+        avg_return = np.average(R)
+        return action, avg_return
 
     def test(self, action, num_steps):
 
@@ -271,22 +291,27 @@ class Bandit():
         '''Executes one run of the bandit algorithm. One run executes
         num_steps in total. Each step in the run executes a number of
         trainining_steps followed by a number of test steps.
-        
+
         num_steps:          number of steps in each run
         tranining_steps:    number of training steps
         test_steps:         number of test steps'''
 
         # randomly seeds the generator at the start of each run
-        np.random.seed(np.random.randint(2**32))
+        # np.random.seed(np.random.randint(2**32))
+        np.random.seed(None)
+
 
         # initialise variables
         self.Q = np.zeros(self.k)
-        self.N = np.ones(self.k)    # avoids division by zero
+        self.N = np.zeros(self.k) + 1e-6    # avoids division by zero
+        self.H = np.zeros(self.k)           # Boltzmann preferences
+        self.run_step = 1                   # UCB initial time step
 
-        for i in range(num_steps):
-            action, self.training_return[idx, i] = self.train(agent, param, training_steps)
-            self.reward[idx, i] = self.test(action, testing_steps)
-            self.regret[idx, i] = self.get_regret(action)
+        for step in range(num_steps):
+            action, self.training_return[idx, step] = self.train(agent, param, training_steps)
+            self.reward[idx, step] = self.test(action, testing_steps)
+            self.regret[idx, step] = self.get_regret(action)
+            self.run_step += 1
 
     def _get_posterior_sample(self):
         self.prior_success = np.array([a0 for arm in range(self.k)])
@@ -300,18 +325,20 @@ def main():
     # parses command line arguments
     args = get_arguments()
 
-    # create Bandit environment and define agent
-    env = Bandit(agent='ucb', agent_param=1, k=args.arms, seed=args.seed)
+    for c in [1]:
+        # create Bandit environment and define agent
+        env = Bandit(agent='ucb', agent_param=c, k=args.arms, seed=args.seed)
 
-    # run bandit
-    env.run(env.agent, env.agent_param, args.runs, args.steps, args.training_steps, args.testing_steps)
+        # run bandit
+        env.run(env.agent, env.agent_param,
+                args.runs, args.steps, args.training_steps, args.testing_steps)
 
-    # plot results
-    separator = ' '
-    title = separator.join([env.agent.__name__, str(env.agent_param)]) 
-    plot3(title, env.training_return, env.regret, env.reward)
+        # plot results
+        separator = '_'
+        title = separator.join([env.agent.__name__, str(env.agent_param)])
+        plot3(title, env.training_return, env.regret, env.reward)
 
-    plt.show()
+        plt.show()
 
 if __name__ == '__main__':
     main()
