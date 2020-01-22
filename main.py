@@ -167,12 +167,10 @@ def random_argmax(vector):
 
 
 class Agent(object):
-    @classmethod
     def update(cls):
         '''Updates agent variables at the end of each step.'''
-        pass
+        passq
 
-    @classmethod
     def choose_action(cls):
         pass
 
@@ -196,33 +194,57 @@ class UCB(Agent):
     def best_action(self):
         return random_argmax(self.Q)
 
-    def update(self, action, R):
+    def update(self, action, R_list):
+        R = R_list[-1]
+
         self.N[action] += 1
         self.Q[action] = self.Q[action] + (R - self.Q[action]) / self.N[action]
 
 
 class Boltzmann(Agent):
-    def __init__(self, env):
+    def __init__(self, alpha=1):
+        self.alpha = alpha
 
-        # initialise variables
-        self.H = np.zeros(env.k)           # Boltzmann preferences
+    def reset(self, env):
+        # initialise preferences
+        self.H = np.zeros(env.k)
 
-    def boltzmann(self, alpha=1):
+        self.Q = np.zeros(env.k)
+        self.N = np.zeros(env.k)
+
+        self.k = env.k
+
+    def choose_action(self):
 
             # initialise probabilities according to preferences
-            prob = softmax(self.H)
+            self.prob = softmax(self.H)
 
             # select action with highest probability
-            action = random_argmax(prob)
+            action = random_argmax(self.prob)
+
+            return action
+
+    def best_action(self):
+        return random_argmax(self.Q)
+
+    def update(self, action, R_list):
             other_actions = (np.arange(self.k) != action)
 
-            R = []
+            R = R_list[-1]
+            avg_return = np.average(R_list)
+
+            R = R_list[-1]
+
+            self.N[action] += 1
+            self.Q[action] = self.Q[action] + (R - self.Q[action]) / self.N[action]
+
+            print('Avg_return: {}'.format(avg_return), 'Q: {}'.format(self.Q[action]), avg_return == self.Q[action])
             # update preferences
             self.H[action] = (self.H[action]
-                            + alpha * (R - avg_return) * (1 - prob[action]))
+                            + self.alpha * (R - avg_return) * (1 - self.prob[action]))
             self.H[other_actions] = (self.H[other_actions]
-                                    - alpha * (R - avg_return)
-                                    * prob[other_actions])
+                                    - self.alpha * (R - avg_return)
+                                    * self.prob[other_actions])
 
 
 class Thompson(Agent):
@@ -294,7 +316,7 @@ class Bandit():
 
             # calculate reward and update variables
             R.append(self.get_reward(action))
-            self.agent.update(action, R[-1])
+            self.agent.update(action, R)
 
         action = self.agent.best_action()
         avg_return = np.average(R)
@@ -360,21 +382,29 @@ def main():
     # parses command line arguments
     args = get_arguments()
     k = args.arms
-    # create Bandit environment and define agent
-    env = Bandit(agent=UCB(c=1), k=k, seed=args.seed)
 
-    # run bandit
-    env.run(args.runs,
-            args.steps,
-            args.training_steps,
-            args.testing_steps)
+    for agent in [
+            UCB(c=1),
+            Boltzmann(alpha=0.125),
+            Boltzmann(alpha=0.250),
+            Boltzmann(alpha=0.500),
+            Boltzmann(alpha=1.000),
+            Boltzmann(alpha=2.000)]:
+        # create Bandit environment and define agent
+        env = Bandit(agent=agent, k=k, seed=args.seed)
 
-    # plot results
-    separator = '_'
-    title = separator.join([str(env.agent.__class__)])
-    plot3(title, env.training_return, env.regret, env.reward)
+        # run bandit
+        env.run(args.runs,
+                args.steps,
+                args.training_steps,
+                args.testing_steps)
 
-    plt.show()
+        # plot results
+        separator = '_'
+        title = separator.join([str(agent)])
+        plot3(title, env.training_return, env.regret, env.reward)
+
+        plt.show()
 
 if __name__ == '__main__':
     main()
