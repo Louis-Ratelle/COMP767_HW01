@@ -11,7 +11,7 @@ from datetime import datetime
 
 ARMS = 10
 RUNS = 10
-STEPS_PER_RUN = 100
+STEPS_PER_RUN = 10000
 TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
@@ -259,14 +259,18 @@ class Boltzmann(Agent):
 
 class Thompson(Agent):
 
-    def __init__(self):
-        pass
+    def __init__(self, mu = 0):
+        self.mu = mu
 
     def __repr__(self):
         return "Thompson"
 
     def reset(self, env):
-        # initialise means and variances
+
+        # Keep initial values for formulas in update below
+        self.mu_initial = np.ones(env.k) * self.mu
+
+        # Keep means and variances for all priors (these will be the updated posteriors)
         self.mu_0 = np.zeros(env.k)
         self.sigma_0 = np.ones(env.k)
 
@@ -276,6 +280,7 @@ class Thompson(Agent):
         self.k = env.k
 
     def choose_action(self):
+        # Get samples from the posteriors (which act as priors)
         self.sample_mu = np.random.normal(self.mu_0, self.sigma_0)
         return random_argmax(self.sample_mu)
 
@@ -287,7 +292,9 @@ class Thompson(Agent):
         self.N[action] += 1
         self.Q[action] = (self.Q[action] + (R - self.Q[action]) / self.N[action])
 
-        self.mu_0[action] = (self.N[action] / (self.N[action]+1)) * self.Q[action]
+        # The next two formulas are from the unpublished book of Mike Jordan "An Introduction to Probabilistic Graphical Models" page 193
+        # when you have a Gaussian prior for mu and a Gaussian for the data (here we assume sigmas for both Gaussians are 1)
+        self.mu_0[action] = (self.N[action] / (self.N[action]+1)) * self.Q[action] + (1 / (self.N[action]+1)) * self.mu_initial[action]
         self.sigma_0[action] = 1/(self.N[action]+1)
 
 
@@ -474,20 +481,21 @@ def main():
     #plt.show()
 
     for agent_name in [Thompson]:
-        agent = agent_name()
-        env = Bandit(agent=agent, k=k, seed=args.seed)
+        for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
+            agent = agent_name(param)
+            env = Bandit(agent=agent, k=k, seed=args.seed)
 
-        env.run(args.runs,
-                args.steps,
-                args.training_steps,
-                args.testing_steps)
+            env.run(args.runs,
+                    args.steps,
+                    args.training_steps,
+                    args.testing_steps)
 
-        # plot results
-        separator = '_'
-        title = separator.join([str(agent)])
-        plot3(title, env.training_return, env.regret, env.reward)
+            # plot results
+            separator = '_'
+            title = separator.join([str(agent)])
+            plot3(title, env.training_return, env.regret, env.reward)
 
-        plt.show()
+            plt.show()
 
     env.plot_reward_distr()
     plt.show()
