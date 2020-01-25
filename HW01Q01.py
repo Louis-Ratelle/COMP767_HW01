@@ -68,7 +68,7 @@ def get_arguments():
 # #############################################################################
 
 
-def plot_reward_distr(data):
+def plot_violin(data):
     '''Creates a violing plot for the reward distributions for each one of the
     k actions in the k-armed bandit.'''
 
@@ -179,6 +179,9 @@ class UCB(Agent):
     def __init__(self, c=1):
         self.c = c
 
+    def __repr__(self):
+        return 'UCB(c={})'.format(self.c)
+
     def reset(self, env):
         self.step = 1
         self.Q = np.zeros(env.k)
@@ -204,6 +207,10 @@ class UCB(Agent):
 class Boltzmann(Agent):
     def __init__(self, alpha=1):
         self.alpha = alpha
+    
+    def __repr__(self):
+        return 'Boltzmann(alpha={})'.format(self.alpha)
+
 
     def reset(self, env):
         # initialise preferences
@@ -220,31 +227,34 @@ class Boltzmann(Agent):
             self.prob = softmax(self.H)
 
             # select action with highest probability
-            action = random_argmax(self.prob)
-
+            # action = random_argmax(self.prob)
+            action = np.random.choice(range(self.k), p=self.prob)
             return action
 
     def best_action(self):
         return random_argmax(self.Q)
 
     def update(self, action, R_list):
-            other_actions = (np.arange(self.k) != action)
+        other_actions = (np.arange(self.k) != action)
 
-            R = R_list[-1]
-            avg_return = np.average(R_list)
+        R = R_list[-1]
+        avg_return = np.average(R_list)
 
-            R = R_list[-1]
+        self.N[action] += 1
+        self.Q[action] = (self.Q[action]
+                          + (R - self.Q[action]) / self.N[action])
 
-            self.N[action] += 1
-            self.Q[action] = self.Q[action] + (R - self.Q[action]) / self.N[action]
-
-            print('Avg_return: {}'.format(avg_return), 'Q: {}'.format(self.Q[action]), avg_return == self.Q[action])
-            # update preferences
-            self.H[action] = (self.H[action]
-                            + self.alpha * (R - avg_return) * (1 - self.prob[action]))
-            self.H[other_actions] = (self.H[other_actions]
-                                    - self.alpha * (R - avg_return)
-                                    * self.prob[other_actions])
+        # print('Avg_return: {}'.format(avg_return), 'Q: {}'.format(self.Q[action]), avg_return == self.Q[action])
+        # update preferences
+        self.H[action] = (self.H[action]
+                          + self.alpha
+                          * (R - avg_return)
+                          * (1 - self.prob[action]))
+        
+        self.H[other_actions] = (self.H[other_actions]
+                                 - self.alpha
+                                 * (R - avg_return)
+                                 * self.prob[other_actions])
 
 
 class Thompson(Agent):
@@ -278,19 +288,20 @@ class Bandit():
         self.k = k
         self.agent = agent
 
-        print('Initializing {}-armed bandit...\n\nThe true values q_*(a) for '
-              'each action a=0, 1,..., {} were selected according to a normal '
-              'distribution with mean zero and unit variance and then the '
-              'actual rewards were selected according to a mean q_*(a) unit '
-              'variance normal distribution.'.format(k, k-1))
+        # print('Initializing {}-armed bandit...\n\nThe true values q_*(a) for '
+        #       'each action a=0, 1,..., {} were selected according to a normal '
+        #       'distribution with mean zero and unit variance and then the '
+        #       'actual rewards were selected according to a mean q_*(a) unit '
+        #       'variance normal distribution.'.format(k, k-1))
 
         # defines the true value q_star for each action a=0, 1, ..., k
         self.q_star = np.random.randn(k)
 
+    def plot_reward_distr(self):
         # generates data for violin plot
         data = [sorted(np.random.normal(action, 1, 10000))
                 for action in self.q_star]
-        plot_reward_distr(data)
+        plot_violin(data)
 
     def get_reward(self, action):
         '''Action produces a reward from a normal distribution with mean
@@ -383,28 +394,42 @@ def main():
     args = get_arguments()
     k = args.arms
 
-    for agent in [
-            UCB(c=1),
-            Boltzmann(alpha=0.125),
-            Boltzmann(alpha=0.250),
-            Boltzmann(alpha=0.500),
-            Boltzmann(alpha=1.000),
-            Boltzmann(alpha=2.000)]:
-        # create Bandit environment and define agent
-        env = Bandit(agent=agent, k=k, seed=args.seed)
+    #     agents = agents.append(UCB(c=param))
+    # for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
+    #     agents = agents.append(Boltzmann(alpha=param))
+    # print(agents)
 
-        # run bandit
-        env.run(args.runs,
-                args.steps,
-                args.training_steps,
-                args.testing_steps)
+    # for agent in [
+    #         UCB(c=1),
+    #         Boltzmann(alpha=0.125),
+    #         Boltzmann(alpha=0.250),
+    #         Boltzmann(alpha=0.500),
+    #         Boltzmann(alpha=1.000),
+    #         Boltzmann(alpha=2.000)]:
+    # agents = []
 
-        # plot results
-        separator = '_'
-        title = separator.join([str(agent)])
-        plot3(title, env.training_return, env.regret, env.reward)
+    for agent_name in [UCB, Boltzmann]:
+        for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
+            agent = agent_name(param)
 
-        plt.show()
+            # create Bandit environment and define agent
+            env = Bandit(agent=agent, k=k, seed=args.seed)
+
+            # run bandit
+            env.run(args.runs,
+                    args.steps,
+                    args.training_steps,
+                    args.testing_steps)
+
+            # plot results
+            separator = '_'
+            title = separator.join([str(agent)])
+            plot3(title, env.training_return, env.regret, env.reward)
+
+            plt.show()
+    
+    env.plot_reward_distr()
+    plt.show()
 
 if __name__ == '__main__':
     main()
