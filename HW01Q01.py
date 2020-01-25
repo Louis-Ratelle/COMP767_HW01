@@ -169,7 +169,7 @@ def random_argmax(vector):
 class Agent(object):
     def update(cls):
         '''Updates agent variables at the end of each step.'''
-        passq
+        pass
 
     def choose_action(cls):
         pass
@@ -258,6 +258,41 @@ class Boltzmann(Agent):
 
 
 class Thompson(Agent):
+
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return "Thompson"
+
+    def reset(self, env):
+        # initialise means and variances
+        self.mu_0 = np.zeros(env.k)
+        self.sigma_0 = np.ones(env.k)
+
+        self.Q = np.zeros(env.k)
+        self.N = np.zeros(env.k)
+
+        self.k = env.k
+
+    def choose_action(self):
+        self.sample_mu = np.random.normal(self.mu_0, self.sigma_0)
+        return random_argmax(self.sample_mu)
+
+    def best_action(self):
+        return random_argmax(self.Q)
+
+    def update(self, action, R_list):
+        R = R_list[-1]
+        self.N[action] += 1
+        self.Q[action] = (self.Q[action] + (R - self.Q[action]) / self.N[action])
+
+        self.mu_0[action] = (self.N[action] / (self.N[action]+1)) * self.Q[action]
+        self.sigma_0[action] = 1/(self.N[action]+1)
+
+
+
+    """
     def thompson(self, observation):
         '''Picks action according to Thompson sampling with Beta posterior for
         action selection.'''
@@ -271,6 +306,8 @@ class Thompson(Agent):
         self.prior_failure = np.array([b0 for arm in range(self.k)])
 
         return np.random.beta(self.prior_success, self.prior_failure)
+    
+    """
 
 # #############################################################################
 #
