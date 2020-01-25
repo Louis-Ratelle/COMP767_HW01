@@ -207,10 +207,9 @@ class UCB(Agent):
 class Boltzmann(Agent):
     def __init__(self, alpha=1):
         self.alpha = alpha
-    
+
     def __repr__(self):
         return 'Boltzmann(alpha={})'.format(self.alpha)
-
 
     def reset(self, env):
         # initialise preferences
@@ -250,7 +249,7 @@ class Boltzmann(Agent):
                           + self.alpha
                           * (R - avg_return)
                           * (1 - self.prob[action]))
-        
+
         self.H[other_actions] = (self.H[other_actions]
                                  - self.alpha
                                  * (R - avg_return)
@@ -371,7 +370,6 @@ class Bandit():
 
         # randomly seeds the generator at the start of each run
         np.random.seed(None)
-        # np.random.seed(np.random.randint(2**32))
 
         # resets agent in the beginning of each run
         self.agent.reset(self)
@@ -394,26 +392,17 @@ def main():
     args = get_arguments()
     k = args.arms
 
-    #     agents = agents.append(UCB(c=param))
-    # for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
-    #     agents = agents.append(Boltzmann(alpha=param))
-    # print(agents)
+    # create Bandit environment and define agent
+    env = Bandit(agent=None, k=k, seed=args.seed)
 
-    # for agent in [
-    #         UCB(c=1),
-    #         Boltzmann(alpha=0.125),
-    #         Boltzmann(alpha=0.250),
-    #         Boltzmann(alpha=0.500),
-    #         Boltzmann(alpha=1.000),
-    #         Boltzmann(alpha=2.000)]:
-    # agents = []
-
+    # run experiments with different agents
     for agent_name in [UCB, Boltzmann]:
         for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
             agent = agent_name(param)
 
-            # create Bandit environment and define agent
-            env = Bandit(agent=agent, k=k, seed=args.seed)
+            # # create Bandit environment and define agent
+            # env = Bandit(agent=agent, k=k, seed=args.seed)
+            env.agent = agent
 
             # run bandit
             env.run(args.runs,
@@ -427,9 +416,10 @@ def main():
             plot3(title, env.training_return, env.regret, env.reward)
 
             plt.show()
-    
+
     env.plot_reward_distr()
     plt.show()
+
 
 if __name__ == '__main__':
     main()
