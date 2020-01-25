@@ -16,8 +16,8 @@ TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
 NOW = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
-SEED = None
-# SEED = 197710
+#SEED = None
+SEED = 1
 
 # #############################################################################
 #
@@ -482,7 +482,7 @@ def main():
     #plt.show()
 
     for agent_name in [Thompson]:
-        for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
+        for param in [-10,-5,-1,0,1,5,10]:
             agent = agent_name(param)
             env = Bandit(agent=agent, k=k, seed=args.seed)
 
