@@ -11,7 +11,7 @@ from datetime import datetime
 
 ARMS = 10
 RUNS = 10
-STEPS_PER_RUN = 10000
+STEPS_PER_RUN = 1000
 TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
@@ -269,6 +269,7 @@ class Thompson(Agent):
 
         # Keep initial values for formulas in update below
         self.mu_initial = np.ones(env.k) * self.mu
+        self.sigma_initial = np.ones(env.k) * 5.0
 
         # Keep means and variances for all priors (these will be the updated posteriors)
         self.mu_0 = np.zeros(env.k)
@@ -295,7 +296,7 @@ class Thompson(Agent):
         # The next two formulas are from the unpublished book of Mike Jordan "An Introduction to Probabilistic Graphical Models" page 193
         # when you have a Gaussian prior for mu and a Gaussian for the data (here we assume sigmas for both Gaussians are 1)
         self.mu_0[action] = (self.N[action] / (self.N[action]+1)) * self.Q[action] + (1 / (self.N[action]+1)) * self.mu_initial[action]
-        self.sigma_0[action] = 1/(self.N[action]+1)
+        self.sigma_0[action] = self.sigma_initial[action] * 1/(self.N[action]+1)
 
 
 
@@ -484,6 +485,9 @@ def main():
         for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
             agent = agent_name(param)
             env = Bandit(agent=agent, k=k, seed=args.seed)
+
+            env.plot_reward_distr()
+            plt.show()
 
             env.run(args.runs,
                     args.steps,
