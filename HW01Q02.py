@@ -18,6 +18,7 @@ for i in range(env.observation_space.n):
 print('action_space: {}'.format(env.action_space))
 env.close()
 
+
 class Policy():
     def __init__(self, env, tol=1e-6):
         self.env = env
@@ -29,6 +30,7 @@ class Policy():
         for s in range(env.observation_space.n):
             self.V[s] = 0
             self.pi[s] = env.action_space.sample()
+            self.p[s1, r, s, a] = 0        # TODO
 
     def eval(self):
         '''Evaluates the policy value for each state s in
@@ -39,7 +41,7 @@ class Policy():
             delta = 0
             for s in range(self.env.observation_space.n):
                 V_old = self.V[s]
-                self.V[s] = 0        # TODO
+                self.V[s] = np.sum(self.p[s1, r, s, self.pi[s]] * (r + gamma * V(s1))) for (s1, r) in       # TODO
                 delta = max(delta, np.abs(V_old - self.V[s]))
 
     def iterate(self):
