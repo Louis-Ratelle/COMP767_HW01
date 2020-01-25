@@ -445,28 +445,53 @@ def main():
     #         Boltzmann(alpha=2.000)]:
     # agents = []
 
-    for agent_name in [UCB, Boltzmann]:
-        for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
-            agent = agent_name(param)
 
-            # create Bandit environment and define agent
-            env = Bandit(agent=agent, k=k, seed=args.seed)
 
-            # run bandit
-            env.run(args.runs,
-                    args.steps,
-                    args.training_steps,
-                    args.testing_steps)
 
-            # plot results
-            separator = '_'
-            title = separator.join([str(agent)])
-            plot3(title, env.training_return, env.regret, env.reward)
 
-            plt.show()
-    
+    #
+    #for agent_name in [UCB, Boltzmann]:
+    #    for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
+    #        agent = agent_name(param)
+    #
+    #        # create Bandit environment and define agent
+    #        env = Bandit(agent=agent, k=k, seed=args.seed)
+    #
+    #        # run bandit
+    #        env.run(args.runs,
+    #                args.steps,
+    #                args.training_steps,
+    #                args.testing_steps)
+    #
+    #        # plot results
+    #        separator = '_'
+    #        title = separator.join([str(agent)])
+    #        plot3(title, env.training_return, env.regret, env.reward)
+    #
+    #        plt.show()
+    #
+    #env.plot_reward_distr()
+    #plt.show()
+
+    for agent_name in [Thompson]:
+        agent = agent_name()
+        env = Bandit(agent=agent, k=k, seed=args.seed)
+
+        env.run(args.runs,
+                args.steps,
+                args.training_steps,
+                args.testing_steps)
+
+        # plot results
+        separator = '_'
+        title = separator.join([str(agent)])
+        plot3(title, env.training_return, env.regret, env.reward)
+
+        plt.show()
+
     env.plot_reward_distr()
     plt.show()
+
 
 if __name__ == '__main__':
     main()
