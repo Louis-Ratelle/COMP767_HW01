@@ -11,13 +11,13 @@ from datetime import datetime
 
 ARMS = 10
 RUNS = 10
-STEPS_PER_RUN = 100
+STEPS_PER_RUN = 1000
 TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
 NOW = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
-SEED = None
-# SEED = 197710
+#SEED = None
+SEED = 1
 
 # #############################################################################
 #
@@ -169,7 +169,7 @@ def random_argmax(vector):
 class Agent(object):
     def update(cls):
         '''Updates agent variables at the end of each step.'''
-        passq
+        pass
 
     def choose_action(cls):
         pass
@@ -257,6 +257,49 @@ class Boltzmann(Agent):
 
 
 class Thompson(Agent):
+
+    def __init__(self, mu = 0):
+        self.mu = mu
+
+    def __repr__(self):
+        return "Thompson"
+
+    def reset(self, env):
+
+        # Keep initial values for formulas in update below
+        self.mu_initial = np.ones(env.k) * self.mu
+        self.sigma_initial = np.ones(env.k) * 5.0
+
+        # Keep means and variances for all priors (these will be the updated posteriors)
+        self.mu_0 = np.zeros(env.k)
+        self.sigma_0 = np.ones(env.k)
+
+        self.Q = np.zeros(env.k)
+        self.N = np.zeros(env.k)
+
+        self.k = env.k
+
+    def choose_action(self):
+        # Get samples from the posteriors (which act as priors)
+        self.sample_mu = np.random.normal(self.mu_0, self.sigma_0)
+        return random_argmax(self.sample_mu)
+
+    def best_action(self):
+        return random_argmax(self.Q)
+
+    def update(self, action, R_list):
+        R = R_list[-1]
+        self.N[action] += 1
+        self.Q[action] = (self.Q[action] + (R - self.Q[action]) / self.N[action])
+
+        # The next two formulas are from the unpublished book of Mike Jordan "An Introduction to Probabilistic Graphical Models" page 193
+        # when you have a Gaussian prior for mu and a Gaussian for the data (here we assume sigmas for both Gaussians are 1)
+        self.mu_0[action] = (self.N[action] / (self.N[action]+1)) * self.Q[action] + (1 / (self.N[action]+1)) * self.mu_initial[action]
+        self.sigma_0[action] = self.sigma_initial[action] * 1/(self.N[action]+1)
+
+
+
+    """
     def thompson(self, observation):
         '''Picks action according to Thompson sampling with Beta posterior for
         action selection.'''
@@ -270,6 +313,8 @@ class Thompson(Agent):
         self.prior_failure = np.array([b0 for arm in range(self.k)])
 
         return np.random.beta(self.prior_success, self.prior_failure)
+    
+    """
 
 # #############################################################################
 #
@@ -404,6 +449,26 @@ def main():
             # env = Bandit(agent=agent, k=k, seed=args.seed)
             env.agent = agent
 
+           # run bandit
+           env.run(args.runs,
+                   args.steps,
+                   args.training_steps,
+                   args.testing_steps)
+    
+           # plot results
+           separator = '_'
+           title = separator.join([str(agent)])
+           plot3(title, env.training_return, env.regret, env.reward)
+    
+           plt.show()
+    
+    for agent_name in [Thompson]:
+        for param in [-10, -5, -1, 0, 1, 5, 10]:
+            agent = agent_name(param)
+            
+            # env = Bandit(agent=agent, k=k, seed=args.seed)
+            env.agent = agent
+            
             # run bandit
             env.run(args.runs,
                     args.steps,
