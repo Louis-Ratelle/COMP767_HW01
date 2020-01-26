@@ -1,5 +1,82 @@
 import numpy as np
 import gym
+import argparse
+import matplotlib.pyplot as plt
+from HW01Q01 import plot_line_variance
+
+SEED = None
+RUNS = 5
+STEPS_PER_RUN = 100
+TRAINING_EPISODES = 10
+TESTING_EPISODES = 5
+
+
+# #############################################################################
+#
+# Parser
+#
+# #############################################################################
+
+
+def get_arguments():
+    def _str_to_bool(s):
+        '''Convert string to boolean (in argparse context)'''
+        if s.lower() not in ['true', 'false']:
+            raise ValueError('Argument needs to be a '
+                             'boolean, got {}'.format(s))
+        return {'true': True, 'false': False}[s.lower()]
+
+    parser = argparse.ArgumentParser(description='Creating a k-armed bandit.')
+    parser.add_argument('--seed', type=int, default=SEED,
+                        help='Seed for the random number generator.')
+    parser.add_argument('-n', '--runs', type=int, default=RUNS,
+                        help='Number of runs to be executed. Default: '
+                        + str(RUNS))
+    parser.add_argument('-s', '--steps', type=int, default=STEPS_PER_RUN,
+                        help='Number of steps in each run. One run step is '
+                        'the ensemble of training episodes and testing '
+                        'episodes. Default: ' + str(STEPS_PER_RUN))
+    parser.add_argument('--training_steps', type=int,
+                        default=TRAINING_EPISODES,
+                        help='Number of runs to be executed. Default: '
+                        + str(TRAINING_EPISODES))
+    parser.add_argument('--testing_steps', type=int, default=TESTING_EPISODES,
+                        help='Number of runs to be executed. Default: '
+                        + str(TESTING_EPISODES))
+
+    return parser.parse_args()
+
+
+# #############################################################################
+#
+# Plotting
+#
+# #############################################################################
+
+
+def plot2(title, cumulative_reward, timesteps):
+    '''Creates the two required plots: cumulative_reward and number of timesteps
+    per episode.'''
+
+    fig, axs = plt.subplots(nrows=1, ncols=2,
+                            constrained_layout=True,
+                            figsize=(10, 3))
+
+    fig.suptitle(title, fontsize=12)
+
+    plot_line_variance(axs[0], cumulative_reward)
+    axs[0].set_title('Cumulative reward')
+
+    plot_line_variance(axs[1], timesteps)
+    axs[1].set_title('Timesteps per episode')
+
+
+
+# #############################################################################
+#
+# Policy
+#
+# #############################################################################
 
 
 class Policy():
@@ -130,11 +207,27 @@ def render_policy(env, pi):
         observation, reward, done, info = env.step(action)
         cumulative_reward += reward
         env.render()
+        if done:
+            print("Episode finished after {} timesteps".format(i+1))
+            break
+
     print('Cumulative reward: {}'.format(cumulative_reward))
     env.close()
 
+# #############################################################################
+#
+# Main
+#
+# #############################################################################
+
 
 def main():
+
+    args = get_arguments()
+
+    # sets the seed for random experiments
+    np.random.seed(args.seed)
+
     # env = gym.make('FrozenLake-v0')
     env = gym.make('FrozenLake8x8-v0')
     # env = gym.make('Taxi-v3')

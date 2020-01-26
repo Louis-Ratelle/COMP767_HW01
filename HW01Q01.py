@@ -11,7 +11,7 @@ from datetime import datetime
 
 ARMS = 10
 RUNS = 10
-STEPS_PER_RUN = 1000
+STEPS_PER_RUN = 100
 TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
@@ -48,15 +48,11 @@ def get_arguments():
                         'the ensemble of training steps and testing steps. '
                         'Default: ' + str(STEPS_PER_RUN))
     parser.add_argument('--training_steps', type=int, default=TRAINING_STEPS,
-                        help='Number of runs to be executed. Default: '
-                        + str(TRAINING_STEPS))
-    parser.add_argument('--testing_steps', type=int, default=RUNS,
-                        help='Number of runs to be executed. Default: '
-                        + str(TESTING_STEPS))
-    parser.add_argument('-c', type=float, default=1,
-                        help='Constant for the upper confidence bound (UCB) '
-                        'case. This constant is ignored for the other agents. '
-                        'Default: c=1')
+                        help='Number of training steps to be executed.'
+                        'Default: ' + str(TRAINING_STEPS))
+    parser.add_argument('--testing_steps', type=int, default=TESTING_STEPS,
+                        help='Number of testing steps to be executed.'
+                        'Default: ' + str(TESTING_STEPS))
 
     return parser.parse_args()
 
@@ -121,7 +117,7 @@ def plot3(title, training_return, regret, reward):
 
     fig, axs = plt.subplots(nrows=1, ncols=3,
                             constrained_layout=True,
-                            figsize=(10,3))
+                            figsize=(10, 3))
 
     fig.suptitle(title, fontsize=12)
 
@@ -167,11 +163,11 @@ def random_argmax(vector):
 
 
 class Agent(object):
-    def update(cls):
+    def update(self):
         '''Updates agent variables at the end of each step.'''
         pass
 
-    def choose_action(cls):
+    def choose_action(self):
         pass
 
 
@@ -222,13 +218,13 @@ class Boltzmann(Agent):
 
     def choose_action(self):
 
-            # initialise probabilities according to preferences
-            self.prob = softmax(self.H)
+        # initialise probabilities according to preferences
+        self.prob = softmax(self.H)
 
-            # select action with highest probability
-            # action = random_argmax(self.prob)
-            action = np.random.choice(range(self.k), p=self.prob)
-            return action
+        # select action with highest probability
+        # action = random_argmax(self.prob)
+        action = np.random.choice(range(self.k), p=self.prob)
+        return action
 
     def best_action(self):
         return random_argmax(self.Q)
@@ -258,11 +254,11 @@ class Boltzmann(Agent):
 
 class Thompson(Agent):
 
-    def __init__(self, mu = 0):
+    def __init__(self, mu=0):
         self.mu = mu
 
     def __repr__(self):
-        return "Thompson"
+        return 'Thompson(mu={})'.format(self.mu)
 
     def reset(self, env):
 
@@ -297,24 +293,6 @@ class Thompson(Agent):
         self.mu_0[action] = (self.N[action] / (self.N[action]+1)) * self.Q[action] + (1 / (self.N[action]+1)) * self.mu_initial[action]
         self.sigma_0[action] = self.sigma_initial[action] * 1/(self.N[action]+1)
 
-
-
-    """
-    def thompson(self, observation):
-        '''Picks action according to Thompson sampling with Beta posterior for
-        action selection.'''
-
-        sampled_means = self._get_posterior_sample()
-        action = random_argmax(sampled_means)
-        return action
-
-    def _get_posterior_sample(self):
-        self.prior_success = np.array([a0 for arm in range(self.k)])
-        self.prior_failure = np.array([b0 for arm in range(self.k)])
-
-        return np.random.beta(self.prior_success, self.prior_failure)
-    
-    """
 
 # #############################################################################
 #
@@ -449,26 +427,26 @@ def main():
             # env = Bandit(agent=agent, k=k, seed=args.seed)
             env.agent = agent
 
-           # run bandit
-           env.run(args.runs,
-                   args.steps,
-                   args.training_steps,
-                   args.testing_steps)
-    
-           # plot results
-           separator = '_'
-           title = separator.join([str(agent)])
-           plot3(title, env.training_return, env.regret, env.reward)
-    
-           plt.show()
-    
+            # run bandit
+            env.run(args.runs,
+                    args.steps,
+                    args.training_steps,
+                    args.testing_steps)
+
+            # plot results
+            separator = '_'
+            title = separator.join([str(agent)])
+            plot3(title, env.training_return, env.regret, env.reward)
+
+            plt.show()
+
     for agent_name in [Thompson]:
         for param in [-10, -5, -1, 0, 1, 5, 10]:
             agent = agent_name(param)
-            
+
             # env = Bandit(agent=agent, k=k, seed=args.seed)
             env.agent = agent
-            
+
             # run bandit
             env.run(args.runs,
                     args.steps,
