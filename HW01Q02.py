@@ -193,26 +193,26 @@ class Policy():
         return np.sum(p * (r + self.gamma * self.V[s1]))
 
 
-def render_policy(env, pi):
-    print('=' * 80)
-    print('Initial state')
-    print('=' * 80)
-    env.render()
+def render_policy(env, pi, num_episodes=20, max_steps=100):
 
-    cumulative_reward = 0
-    for i, action in enumerate(pi):
+    for episode in range(num_episodes):
+        cumulative_reward = 0
+        i = 0
         print('=' * 80)
-        print('Step {}'.format(i+1))
+        print('Episode {}'.format(episode))
         print('=' * 80)
-        observation, reward, done, info = env.step(action)
-        cumulative_reward += reward
         env.render()
-        if done:
-            print("Episode finished after {} timesteps".format(i+1))
-            break
-
-    print('Cumulative reward: {}'.format(cumulative_reward))
-    env.close()
+        observation = env.reset()
+        # for t in range(max_steps):
+        done = False
+        while not done:
+            i += 1
+            action = pi[observation]
+            observation, reward, done, info = env.step(action)
+            cumulative_reward += reward
+            print('Step {}: reward {}, cumulative reward: {}'.format(i, reward, cumulative_reward))
+            print('-' * 80)
+            env.render()
 
 # #############################################################################
 #
@@ -244,6 +244,7 @@ def main():
     render_policy(env, pi_val)
     print(pi==pi_val)
 
+    env.close()
 
 if __name__ == '__main__':
     main()
