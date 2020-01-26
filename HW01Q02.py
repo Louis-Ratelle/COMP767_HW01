@@ -9,6 +9,7 @@ RUNS = 5
 STEPS_PER_RUN = 100
 TRAINING_EPISODES = 10
 TESTING_EPISODES = 5
+ENV = 'FrozenLake-v0'
 
 
 # #############################################################################
@@ -29,6 +30,17 @@ def get_arguments():
     parser = argparse.ArgumentParser(description='Creating a k-armed bandit.')
     parser.add_argument('--seed', type=int, default=SEED,
                         help='Seed for the random number generator.')
+    parser.add_argument('--env', type=str, default=ENV,
+                        help="The environment to be used. Environment needs "
+                        "to have discrete states. Common choices are: "
+                        "'FrozenLake8x8-v0','Taxi-v3', etc. Default:" + ENV)
+    parser.add_argument('--value_iteration', action="store_true",
+                        help='If this flag is set, value iteration will be '
+                        'used. If the flag is missing, policy iteration '
+                        'will be used by default.')
+    parser.add_argument('-v', '--verbose', action="store_true",
+                        help='If this flag is set, the algorithm will generate '
+                        'more output, useful for debugging.')
     parser.add_argument('-n', '--runs', type=int, default=RUNS,
                         help='Number of runs to be executed. Default: '
                         + str(RUNS))
@@ -80,9 +92,10 @@ def plot2(title, cumulative_reward, timesteps):
 
 
 class Policy():
-    def __init__(self, env, gamma=1, tol=1e-6):
+    def __init__(self, env, gamma=1, bVerbose=False, tol=1e-6):
         self.env = env
         self.gamma = gamma
+        self.bVerbose = bVerbose
         self.tol = tol
 
         self.counter = 0
@@ -110,7 +123,9 @@ class Policy():
                 V_old = self.V[s]
                 self.V[s] = self._getvalue(s, self.pi[s])
                 delta = max(delta, np.abs(V_old - self.V[s]))
-        print('Policy evaluation #{} completed in {} steps.\n\nV: {}\n'.format(self.counter, i, self.V))
+        print('Policy evaluation #{} completed in {} steps.'.format(self.counter, i))
+        if self.bVerbose:
+            print('V: {}\n'.format(self.V))
         self.iterate()
         return self.V, self.pi
 
@@ -136,11 +151,14 @@ class Policy():
             self.pi[s] = np.argmax(values)
             # self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
 
-            # print('state {} : {}'.format(s, values))
+            if self.bVerbose:
+                print('state {} : {}'.format(s, values))
 
             if old_action != self.pi[s]:
                 stable = False
-        print('pi: {}'.format(self.pi))
+
+        if self.bVerbose:
+            print('pi: {}'.format(self.pi)) 
 
         if not stable:
             self.eval()
@@ -162,8 +180,21 @@ class Policy():
             i += 1
             for s in range(self.env.observation_space.n):
                 V_old = self.V[s]
-                self.V[s] = np.max([self._getvalue(s, action) for action in range(self.env.action_space.n)])
+
+                # self.V[s] = np.max([self._getvalue(s, action) for action in range(self.env.action_space.n)])
+                values = []
+                for action in range(self.env.action_space.n):
+                    values.append(self._getvalue(s, action))
+
+                self.V[s] = np.max(values)
+
+                if self.bVerbose:
+                    print('state {} : {}'.format(s, values))
+
                 delta = max(delta, np.abs(V_old - self.V[s]))
+
+            if self.bVerbose:
+                print('Step: {} V: {}'.format(i, self.V))
 
         for s in range(self.env.observation_space.n):
             self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
@@ -228,23 +259,23 @@ def main():
     # sets the seed for random experiments
     np.random.seed(args.seed)
 
-    # env = gym.make('FrozenLake-v0')
-    env = gym.make('FrozenLake8x8-v0')
-    # env = gym.make('Taxi-v3')
+    # sets the environment
+    env = gym.make(args.env)
     env.reset()
 
-    pol = Policy(env, gamma=0.9)
-    V, pi = pol.eval()
-    print('Done. ****************')
+    pol = Policy(env, gamma=0.9, bVerbose=args.verbose)
+    if args.value_iteration:
+        V, pi = pol.value_iteration()
+        print('***** Value iteration completed.')
+    else:
+        V, pi = pol.eval()
+        print('***** Policy iteration completed.')
+    print('V: {}\n\npi:{}'.format(V, pi))
 
-    valuepol = Policy(env, gamma=0.9)
-    V_val, pi_val = valuepol.value_iteration()
-    print('V: {}\n\npi:{}'.format(V_val, pi_val))
-
-    render_policy(env, pi_val)
-    print(pi==pi_val)
+    render_policy(env, pi, num_episodes=1)
 
     env.close()
+
 
 if __name__ == '__main__':
     main()
