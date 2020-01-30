@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from HW01Q01 import plot_line_variance
 
 SEED = None
+GAMMA = 0.9
+TOL = 1e-6
 RUNS = 5
 STEPS_PER_RUN = 100
 TRAINING_EPISODES = 10
@@ -27,17 +29,30 @@ def get_arguments():
                              'boolean, got {}'.format(s))
         return {'true': True, 'false': False}[s.lower()]
 
-    parser = argparse.ArgumentParser(description='Creating a k-armed bandit.')
+    parser = argparse.ArgumentParser(
+        description='Applying dynamic programming '
+        'to a discrete gym environment.')
     parser.add_argument('--seed', type=int, default=SEED,
                         help='Seed for the random number generator.')
     parser.add_argument('--env', type=str, default=ENV,
-                        help="The environment to be used. Environment needs "
-                        "to have discrete states. Common choices are: "
-                        "'FrozenLake8x8-v0','Taxi-v3', etc. Default:" + ENV)
+                        help="The environment to be used. Environment must "
+                        "have discrete actions and states. Common choices "
+                        "are: 'FrozenLake8x8-v0','Taxi-v3', etc. Default:"
+                        + ENV)
+    parser.add_argument('--gamma', type=float, default=GAMMA,
+                        help='Defines the discount rate. Default: '
+                        + str(GAMMA))
+    parser.add_argument('--tol', type=float, default=TOL,
+                        help='Defines the tolerance for convergence of the '
+                        'algorithms. Default: ' + str(TOL))
     parser.add_argument('--value_iteration', action="store_true",
                         help='If this flag is set, value iteration will be '
                         'used. If the flag is missing, policy iteration '
                         'will be used by default.')
+    parser.add_argument('--render_policy', action="store_true",
+                        help='If this flag is set, the optimal policy will '
+                        'be applied to one episode of the environment and '
+                        'will present the results.')
     parser.add_argument('-v', '--verbose', action="store_true",
                         help='If this flag is set, the algorithm will generate '
                         'more output, useful for debugging.')
@@ -263,7 +278,10 @@ def main():
     env = gym.make(args.env)
     env.reset()
 
-    pol = Policy(env, gamma=0.9, bVerbose=args.verbose)
+    pol = Policy(env,
+                 gamma=args.gamma,
+                 bVerbose=args.verbose,
+                 tol=args.tol)
     if args.value_iteration:
         V, pi = pol.value_iteration()
         print('***** Value iteration completed.')
@@ -272,7 +290,8 @@ def main():
         print('***** Policy iteration completed.')
     print('V: {}\n\npi:{}'.format(V, pi))
 
-    render_policy(env, pi, num_episodes=1)
+    if args.render_policy:
+        render_policy(env, pi, num_episodes=1)
 
     env.close()
 
