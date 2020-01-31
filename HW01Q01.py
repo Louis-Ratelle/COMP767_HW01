@@ -11,7 +11,7 @@ from datetime import datetime
 
 ARMS = 10
 RUNS = 10
-STEPS_PER_RUN = 100
+STEPS_PER_RUN = 1000
 TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
@@ -102,33 +102,37 @@ def plot_line_variance(ax, data, gamma=1):
     avg = np.average(data, axis=0)
     std = np.std(data, axis=0)
 
-    ax.plot(avg + gamma * std, 'b--', linewidth=0.5)
-    ax.plot(avg - gamma * std, 'b--', linewidth=0.5)
+    ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
+    ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
     ax.fill_between(range(len(avg)),
                     avg + gamma * std,
                     avg - gamma * std,
-                    facecolor='blue',
+                    facecolor='red',
                     alpha=0.1)
     ax.plot(avg)
 
-def plot3(title, training_return, regret, reward):
+def plot4(title, training_return, training_regret, testing_reward, testing_regret):
     '''Creates the three required plots: average training return, regret
     and testing policy reward.'''
 
-    fig, axs = plt.subplots(nrows=1, ncols=3,
+    fig, axs = plt.subplots(nrows=2, ncols=2,
                             constrained_layout=True,
-                            figsize=(10, 3))
+                            figsize=(10, 6))
 
     fig.suptitle(title, fontsize=12)
 
-    plot_line_variance(axs[0], training_return)
-    axs[0].set_title('Average training return')
+    plot_line_variance(axs[0, 0], training_return)
+    axs[0, 0].set_title('Training return')
 
-    plot_line_variance(axs[1], regret)
-    axs[1].set_title('Average regret per step')
+    plot_line_variance(axs[0, 1], training_regret)
+    axs[0, 1].set_title('Total training regret')
 
-    plot_line_variance(axs[2], reward)
-    axs[2].set_title('Policy reward')
+    plot_line_variance(axs[1, 0], testing_reward)
+    axs[1, 0].set_title('Policy reward')
+    axs[1, 0].set_ylim(bottom=0)
+
+    plot_line_variance(axs[1, 1], testing_regret)
+    axs[1, 1].set_title('Total testing regret')
 
 
 # #############################################################################
@@ -339,21 +343,21 @@ class Bandit():
 
         return regret
 
-    def train(self, num_steps):
+    # def train(self, num_steps):
 
-        R = []
-        for step in range(num_steps):
-            # choose the best action
-            action = self.agent.choose_action()
-            #print('Training step {} chose action {}'.format(i + 1, action + 1))
+    #     R = []
+    #     for step in range(num_steps):
+    #         # choose the best action
+    #         action = self.agent.choose_action()
+    #         #print('Training step {} chose action {}'.format(i + 1, action + 1))
 
-            # calculate reward and update variables
-            R.append(self.get_reward(action))
-            self.agent.update(action, R)
+    #         # calculate reward and update variables
+    #         R.append(self.get_reward(action))
+    #         self.agent.update(action, R)
 
-        action = self.agent.best_action()
-        avg_return = np.average(R)
-        return action, avg_return
+    #     action = self.agent.best_action()
+    #     avg_return = np.average(R)
+    #     return action, avg_return
 
     def test(self, action, num_steps):
 
@@ -370,8 +374,10 @@ class Bandit():
         t0 = time()
 
         self.training_return = np.zeros((num_runs, num_steps))
-        self.regret = np.zeros((num_runs, num_steps))
-        self.reward = np.zeros((num_runs, num_steps))
+        self.training_regret = np.zeros((num_runs, num_steps))
+
+        self.testing_reward = np.zeros((num_runs, num_steps // training_steps))
+        self.testing_regret = np.zeros((num_runs, num_steps // training_steps))
 
         for i in range(num_runs):
             t1 = time()
@@ -394,13 +400,43 @@ class Bandit():
         # randomly seeds the generator at the start of each run
         np.random.seed(None)
 
-        # resets agent in the beginning of each run
+        # initialise run
         self.agent.reset(self)
+        test_counter = 0
+        R = []
 
         for step in range(num_steps):
-            action, self.training_return[idx, step] = self.train(training_steps)
-            self.reward[idx, step] = self.test(action, testing_steps)
-            self.regret[idx, step] = self.get_regret(action)
+
+            # choose the best action
+            action = self.agent.choose_action()
+
+            # calculate reward and update variables
+            R.append(self.get_reward(action))
+            # self.training_return[idx, step] = self.get_reward(action)
+
+            # calculate total training regret
+            if step == 0:
+                self.training_regret[idx, step] = self.get_regret(action)
+            else:
+                self.training_regret[idx, step] = (
+                    self.get_regret(action)
+                    + self.training_regret[idx, step - 1])
+            self.agent.update(action, R)
+            action = self.agent.best_action()
+            
+            # test every number of training_steps
+            if step % training_steps == 0:
+                self.testing_reward[idx, test_counter] = self.test(action, testing_steps)
+                if test_counter == 0:
+                    self.testing_regret[idx, test_counter] = self.get_regret(action)
+                else:
+                    self.testing_regret[idx, test_counter] = (
+                        self.get_regret(action)
+                        + self.testing_regret[idx, test_counter - 1])
+                test_counter += 1
+
+        self.training_return[idx, :] = R
+
 
 # #############################################################################
 #
@@ -436,7 +472,11 @@ def main():
             # plot results
             separator = '_'
             title = separator.join([str(agent)])
-            plot3(title, env.training_return, env.regret, env.reward)
+            plot4(title,
+                  env.training_return,
+                  env.training_regret,
+                  env.testing_reward,
+                  env.testing_regret)
 
             plt.show()
 
@@ -456,8 +496,11 @@ def main():
             # plot results
             separator = '_'
             title = separator.join([str(agent)])
-            plot3(title, env.training_return, env.regret, env.reward)
-
+            plot4(title,
+                  env.training_return,
+                  env.training_regret,
+                  env.testing_reward,
+                  env.testing_regret)
             plt.show()
 
     env.plot_reward_distr()
