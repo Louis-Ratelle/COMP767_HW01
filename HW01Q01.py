@@ -8,6 +8,7 @@ import sys
 from time import time
 from datetime import datetime
 
+plt.rcParams.update({'figure.max_open_warning': 0})
 
 ARMS = 10
 RUNS = 10
@@ -16,8 +17,8 @@ TRAINING_STEPS = 10
 TESTING_STEPS = 5
 
 NOW = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now())
-#SEED = None
-SEED = 1
+SEED = None
+# SEED = 197710
 
 # #############################################################################
 #
@@ -111,6 +112,7 @@ def plot_line_variance(ax, data, gamma=1):
                     alpha=0.1)
     ax.plot(avg)
 
+
 def plot4(title, training_return, training_regret, testing_reward, testing_regret):
     '''Creates the three required plots: average training return, regret
     and testing policy reward.'''
@@ -133,6 +135,45 @@ def plot4(title, training_return, training_regret, testing_reward, testing_regre
 
     plot_line_variance(axs[1, 1], testing_regret)
     axs[1, 1].set_title('Total testing regret')
+
+
+def plot_hyperparameters(results):
+    '''Plots the average rewards as a function of the hyperparameters. It
+    generates two charts: one in log scale for the hyperparamenters x-axis
+    and another one in normal scale, depending on the hyperparameter values.
+
+    results:    a dictionary of agents {'UCB', 'Boltzmann', ' Thompson'}. Each
+                entry in the dictionary is another dictionnary containing the
+                experiment results for each hyperparameter. Each entry in this
+                dictionary has the form
+                {param: returns, 'bXlogscale': bXlogscale}, where:
+
+                param       is the hyperparameter values
+                returns     is an array with the returns for that experiment
+                bXlogscale  boolean to determine if log scale should be used'''
+
+    fig, axs = plt.subplots(nrows=1, ncols=2,
+                            constrained_layout=True,
+                            figsize=(10, 3), sharey=True)
+    fig.suptitle('Hyperparameter search', fontsize=12)
+    axs[0].set_ylabel('Average rewards')
+
+    for agent_name in results:
+        # separates values from key bXlogscale
+        values = {x: np.average(y) for x, y in results[agent_name].items() if type(x) is not str}
+        x = list(values.keys())
+        y = list(values.values())
+
+        if results[agent_name]['bXlogscale']:
+            axs[0].plot(x, y,
+                        label=agent_name)
+            axs[0].set_xscale('log', basex=2)
+        else:
+            axs[1].plot(x, y,
+                        label=agent_name)
+
+    axs[0].legend()
+    axs[1].legend()
 
 
 # #############################################################################
@@ -266,13 +307,13 @@ class Thompson(Agent):
 
     def reset(self, env):
 
-        # Keep initial values for formulas in update below
-        self.mu_initial = np.ones(env.k) * self.mu
-        self.sigma_initial = np.ones(env.k) * 5.0
-
         # Keep means and variances for all priors (these will be the updated posteriors)
-        self.mu_0 = np.zeros(env.k)
+        self.mu_0 = np.ones(env.k) * self.mu
         self.sigma_0 = np.ones(env.k)
+
+        # These are used to calculate the posteriors
+        self.mu_initial = self.mu_0.copy()
+        self.sigma_initial = self.sigma_0.copy()
 
         self.Q = np.zeros(env.k)
         self.N = np.zeros(env.k)
@@ -388,6 +429,8 @@ class Bandit():
         t = time() - t0
         print('{} runs completed in {:2f} seconds.'.format(num_runs, t))
 
+        return self.training_return
+
     def _onerun(self, idx, num_steps, training_steps, testing_steps):
         '''Executes one run of the bandit algorithm. One run executes
         num_steps in total. Each step in the run executes a number of
@@ -398,7 +441,7 @@ class Bandit():
         test_steps:         number of test steps'''
 
         # randomly seeds the generator at the start of each run
-        np.random.seed(None)
+        np.random.seed(idx)
 
         # initialise run
         self.agent.reset(self)
@@ -423,7 +466,7 @@ class Bandit():
                     + self.training_regret[idx, step - 1])
             self.agent.update(action, R)
             action = self.agent.best_action()
-            
+
             # test every number of training_steps
             if step % training_steps == 0:
                 self.testing_reward[idx, test_counter] = self.test(action, testing_steps)
@@ -454,9 +497,13 @@ def main():
     # create Bandit environment and define agent
     env = Bandit(agent=None, k=k, seed=args.seed)
 
+    results = {}
+
     # run experiments with different agents
     for agent_name in [UCB, Boltzmann]:
-        for param in 2.0 ** np.array([-2, -1, 0, 1, 2]):
+        bXlogscale = True
+        results[agent_name] = {}
+        for param in 2.0 ** np.arange(-10, 4):
             agent = agent_name(param)
 
             # # create Bandit environment and define agent
@@ -464,10 +511,10 @@ def main():
             env.agent = agent
 
             # run bandit
-            env.run(args.runs,
-                    args.steps,
-                    args.training_steps,
-                    args.testing_steps)
+            returns = env.run(args.runs,
+                              args.steps,
+                              args.training_steps,
+                              args.testing_steps)
 
             # plot results
             separator = '_'
@@ -478,20 +525,25 @@ def main():
                   env.testing_reward,
                   env.testing_regret)
 
-            plt.show()
+            # plt.show()
+
+            results[agent_name]['bXlogscale'] = bXlogscale
+            results[agent_name][param] = returns
 
     for agent_name in [Thompson]:
-        for param in [-10, -5, -1, 0, 1, 5, 10]:
+        bXlogscale = False
+        results[agent_name] = {}
+        for param in np.arange(-5, 5):
             agent = agent_name(param)
 
             # env = Bandit(agent=agent, k=k, seed=args.seed)
             env.agent = agent
 
             # run bandit
-            env.run(args.runs,
-                    args.steps,
-                    args.training_steps,
-                    args.testing_steps)
+            returns = env.run(args.runs,
+                              args.steps,
+                              args.training_steps,
+                              args.testing_steps)
 
             # plot results
             separator = '_'
@@ -501,7 +553,12 @@ def main():
                   env.training_regret,
                   env.testing_reward,
                   env.testing_regret)
-            plt.show()
+            # plt.show()
+
+            results[agent_name]['bXlogscale'] = bXlogscale
+            results[agent_name][param] = returns
+
+    plot_hyperparameters(results)
 
     env.plot_reward_distr()
     plt.show()
