@@ -114,8 +114,8 @@ def plot_line_variance(ax, data, gamma=1):
 
 
 def plot4(title, training_return, training_regret, testing_reward, testing_regret):
-    '''Creates the three required plots: average training return, regret
-    and testing policy reward.'''
+    '''Creates the four required plots: average training return, training regret,
+    testing policy reward and testing regret.'''
 
     fig, axs = plt.subplots(nrows=2, ncols=2,
                             constrained_layout=True,
