@@ -160,7 +160,7 @@ def plot_hyperparameters(results):
 
     for agent_name in results:
         # separates values from key bXlogscale
-        values = {x: np.average(y) for x, y in results[agent_name].items() if type(x) is not str}
+        values = {x: np.average(y[0]) for x, y in results[agent_name].items() if type(x) is not str}
         x = list(values.keys())
         y = list(values.values())
 
@@ -175,6 +175,31 @@ def plot_hyperparameters(results):
     axs[0].legend()
     axs[1].legend()
 
+
+def plot_rewards(results):
+    '''Plots the average rewards for each hyperparameter chosen. The
+    bXlogscale argument is irrelevant in this case.
+
+    results:    a dictionary of agents {'UCB', 'Boltzmann', ' Thompson'}. Each
+                entry in the dictionary is another dictionnary containing the
+                experiment results for each hyperparameter. Each entry in this
+                dictionary has the form
+                {param: returns, 'bXlogscale': bXlogscale}, where:
+
+                param       is the hyperparameter values
+                returns     is an array with the returns for that experiment
+                bXlogscale  boolean to determine if log scale should be used'''
+
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(9, 4), sharey=True)
+
+    ax.set_ylabel('Rewards')
+    ax.set_title('Rewards per agent')
+    for agent_name in results:
+        for x, y in results[agent_name].items():
+            if type(x) is not str:
+                ax.plot(y[0], label=y[1], color=results[agent_name]['colour'])
+
+    ax.legend()
 
 # #############################################################################
 #
@@ -427,9 +452,9 @@ class Bandit():
             # print('Run {:2d} completed in {:2f} seconds.'.format(i + 1, t))
 
         t = time() - t0
-        print('{} runs completed in {:2f} seconds.'.format(num_runs, t))
+        print('{} completed {} runs in {:2f} seconds.'.format(self.agent, num_runs, t))
 
-        return self.training_return
+        return np.average(self.training_return, axis=0)
 
     def _onerun(self, idx, num_steps, training_steps, testing_steps):
         '''Executes one run of the bandit algorithm. One run executes
@@ -501,9 +526,15 @@ def main():
 
     # run experiments with different agents
     for agent_name in [UCB, Boltzmann]:
+        if agent_name == UCB:
+            colour = 'red'
+        else:
+            colour = 'blue'
+
         bXlogscale = True
         results[agent_name] = {}
-        for param in 2.0 ** np.arange(-10, 4):
+        # for param in 2.0 ** np.arange(-10, 4):
+        for param in 2.0 ** np.arange(-2, 1):
             agent = agent_name(param)
 
             # # create Bandit environment and define agent
@@ -528,12 +559,13 @@ def main():
             # plt.show()
 
             results[agent_name]['bXlogscale'] = bXlogscale
-            results[agent_name][param] = returns
+            results[agent_name]['colour'] = colour
+            results[agent_name][param] = (returns, str(agent))
 
     for agent_name in [Thompson]:
         bXlogscale = False
         results[agent_name] = {}
-        for param in np.arange(-5, 5):
+        for param in np.arange(-5, 10, 5):
             agent = agent_name(param)
 
             # env = Bandit(agent=agent, k=k, seed=args.seed)
@@ -553,12 +585,16 @@ def main():
                   env.training_regret,
                   env.testing_reward,
                   env.testing_regret)
+
             # plt.show()
 
             results[agent_name]['bXlogscale'] = bXlogscale
-            results[agent_name][param] = returns
+            results[agent_name]['colour'] = 'orange'
+            results[agent_name][param] = (returns, str(agent))
 
+    print(results)
     plot_hyperparameters(results)
+    plot_rewards(results)
 
     env.plot_reward_distr()
     plt.show()
