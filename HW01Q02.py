@@ -8,9 +8,9 @@ SEED = None
 GAMMA = 0.9
 TOL = 1e-6
 RUNS = 5
-STEPS_PER_RUN = 100
 TRAINING_EPISODES = 10
 TESTING_EPISODES = 5
+TEST_EVERY = 1
 ENV = 'FrozenLake-v0'
 
 
@@ -19,7 +19,6 @@ ENV = 'FrozenLake-v0'
 # Parser
 #
 # #############################################################################
-
 
 def get_arguments():
     def _str_to_bool(s):
@@ -59,17 +58,16 @@ def get_arguments():
     parser.add_argument('-n', '--runs', type=int, default=RUNS,
                         help='Number of runs to be executed. Default: '
                         + str(RUNS))
-    parser.add_argument('-s', '--steps', type=int, default=STEPS_PER_RUN,
-                        help='Number of steps in each run. One run step is '
-                        'the ensemble of training episodes and testing '
-                        'episodes. Default: ' + str(STEPS_PER_RUN))
-    parser.add_argument('--training_steps', type=int,
+    parser.add_argument('--training_episodes', type=int,
                         default=TRAINING_EPISODES,
-                        help='Number of runs to be executed. Default: '
-                        + str(TRAINING_EPISODES))
-    parser.add_argument('--testing_steps', type=int, default=TESTING_EPISODES,
-                        help='Number of runs to be executed. Default: '
-                        + str(TESTING_EPISODES))
+                        help='Number of training episodes to be executed.'
+                        'Default: ' + str(TRAINING_EPISODES))
+    parser.add_argument('--testing_episodes', type=int, default=TESTING_EPISODES,
+                        help='Number of testing episodes to be executed.'
+                        'Default: ' + str(TESTING_EPISODES))
+    parser.add_argument('--test_every', type=int, default=TEST_EVERY,
+                        help='Number of training iterations to execute before '
+                        'each test. Default: ' + str(TEST_EVERY))
 
     return parser.parse_args()
 
@@ -121,8 +119,11 @@ class Policy():
         self.V = np.zeros(env.observation_space.n)
         self.pi = np.zeros(env.observation_space.n, dtype=int)
 
+        self.env.reset()
+
         for s in range(env.observation_space.n):
             self.pi[s] = env.action_space.sample()
+
 
     def eval(self, bValueIteration=False):
         '''Evaluates the policy value for each state s in
@@ -142,6 +143,7 @@ class Policy():
         if self.bVerbose:
             print('V: {}\n'.format(self.V))
         self.iterate()
+        print('***** Policy iteration completed in {} steps.'.format(self.counter))
         return self.V, self.pi
 
     def iterate(self):
@@ -183,12 +185,16 @@ class Policy():
         only one sweep (one update of each state) of policy evaluation.
 
         output: an estimation of the optimal policy'''
-        # self.eval()
 
-        # for s in range(self.env.observation_space.n):
-        #     self.pi[s] = np.argmax([self._getvalue(s, action) for action in self.env.action_space])
+        training_episodes = args.training_episodes
+        testing_episodes = args.testing_episodes
+        test_every = args.test_every
+
         delta = np.infty
         i = 0
+
+        rewards = []
+        steps = []
 
         while delta > self.tol:
             delta = 0
@@ -211,13 +217,65 @@ class Policy():
             if self.bVerbose:
                 print('Step: {} V: {}'.format(i, self.V))
 
+            # run tests
+            if i % test_every == 0:
+                for s in range(self.env.observation_space.n):
+                    self.pi[s] = np.argmax(
+                        [self._getvalue(s, action) for action in range(self.env.action_space.n)])
+
+                reward, num_steps = self.test(testing_episodes)
+                rewards.append(reward)
+                steps.append(num_steps)
+
         for s in range(self.env.observation_space.n):
             self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
 
-        print('Finished value iteration in {} steps.'.format(i))
+        # test again one last time
+        reward, num_steps = self.test(testing_episodes)
+        rewards.append(reward)
+        steps.append(num_steps)
 
-        return self.V, self.pi
+        print('***** Finished value iteration in {} steps.'.format(i))
 
+        return self.V, self.pi, rewards, steps
+
+    def test(self, num_episodes=5, max_steps=None, render=False):
+
+        cumulative_reward = np.zeros(num_episodes)
+        num_steps = np.zeros(num_episodes)
+        if max_steps is None:
+            max_steps = np.infty
+
+        for episode in range(num_episodes):
+            num_steps[episode] = 0
+            observation = self.env.reset()
+
+            if render:
+                print('=' * 80)
+                print('Episode {}'.format(episode))
+                print('=' * 80)
+                self.env.render()
+
+            done = False
+            while not done and num_steps[episode] < max_steps:
+                num_steps[episode] += 1
+                action = self.pi[observation]
+                observation, reward, done, info = self.env.step(action)
+                cumulative_reward[episode] += reward
+
+                if render:
+                    print('Step {}: reward {}, cumulative reward: {}'.format(
+                        num_steps[episode],
+                        reward,
+                        cumulative_reward[episode]))
+                    print('-' * 80)
+                    self.env.render()
+
+            # only count steps for wins
+            # if reward <= 0:
+            #     num_steps[episode] = np.nan
+
+        return np.mean(cumulative_reward), np.nanmean(num_steps)
 
     def _getvalue(self, state, action):
         '''For a given state and action, returns the value of that
@@ -265,11 +323,44 @@ def render_policy(env, pi, num_episodes=20, max_steps=100):
 # Main
 #
 # #############################################################################
+def run(n_runs, policy, bValueIteration=False):
 
+    rewards = []
+    steps = []
+
+    env = policy.env
+    gamma = policy.gamma
+    bVerbose = policy.bVerbose
+    tol = policy.tol
+
+    for run in range(n_runs):
+        np.random.seed(np.random.randint(0, 2**32 - 1))
+        policy.__init__(env, gamma, bVerbose, tol)
+        print('Run {}'.format(run + 1))
+
+        V, pi, reward, num_steps = one_run(policy, bValueIteration)
+        rewards.append(reward)
+        steps.append(num_steps)
+
+    print(rewards)
+    print(steps)
+    #plot(train)
+    #plot(test)
+
+
+def one_run(policy, bValueIteration=False):
+
+    if bValueIteration:
+        V, pi, rewards, steps = policy.value_iteration()
+    else:
+        V, pi, rewards, steps = policy.eval()
+
+    return V, pi, rewards, steps
+
+
+args = get_arguments()
 
 def main():
-
-    args = get_arguments()
 
     # sets the seed for random experiments
     np.random.seed(args.seed)
@@ -282,13 +373,14 @@ def main():
                  gamma=args.gamma,
                  bVerbose=args.verbose,
                  tol=args.tol)
-    if args.value_iteration:
-        V, pi = pol.value_iteration()
-        print('***** Value iteration completed.')
-    else:
-        V, pi = pol.eval()
-        print('***** Policy iteration completed.')
-    print('V: {}\n\npi:{}'.format(V, pi))
+    # if args.value_iteration:
+    #     V, pi = pol.value_iteration()
+
+    # else:
+    #     V, pi = pol.eval()
+    # print('V: {}\n\npi:{}'.format(V, pi))
+
+    run(args.runs, pol, args.value_iteration)
 
     if args.render_policy:
         render_policy(env, pi, num_episodes=1)
@@ -298,18 +390,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# for i_episode in range(20):
-#     observation = env.reset()
-#     for t in range(100):
-#         env.render()
-#         print(observation)
-#         action = env.action_space.sample()
-#         observation, reward, done, info = env.step(action)
-#         if done:
-#             print("Episode finished after {} timesteps".format(t+1))
-#             break
-
-# for i in range(env.observation_space.n):
-#     print('observation_space: {}'.format(i))
-# print('action_space: {}'.format(env.action_space))

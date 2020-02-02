@@ -103,13 +103,13 @@ def plot_line_variance(ax, data, gamma=1):
     avg = np.average(data, axis=0)
     std = np.std(data, axis=0)
 
-    ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
-    ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
+    # ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
+    # ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
     ax.fill_between(range(len(avg)),
                     avg + gamma * std,
                     avg - gamma * std,
                     facecolor='red',
-                    alpha=0.1)
+                    alpha=0.2)
     ax.plot(avg)
 
 
@@ -427,9 +427,9 @@ class Bandit():
             # print('Run {:2d} completed in {:2f} seconds.'.format(i + 1, t))
 
         t = time() - t0
-        print('{} runs completed in {:2f} seconds.'.format(num_runs, t))
+        print('{} completed {} runs in {:.2f} seconds.'.format(self.agent, num_runs, t))
 
-        return self.training_return
+        return np.average(self.training_return, axis=0)
 
     def _onerun(self, idx, num_steps, training_steps, testing_steps):
         '''Executes one run of the bandit algorithm. One run executes
