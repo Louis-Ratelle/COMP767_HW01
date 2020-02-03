@@ -2,7 +2,7 @@ import numpy as np
 import gym
 import argparse
 import matplotlib.pyplot as plt
-from HW01Q01 import plot_line_variance
+#from HW01Q01 import plot_line_variance
 
 SEED = None
 GAMMA = 0.9
@@ -12,7 +12,7 @@ TRAINING_EPISODES = 10
 TESTING_EPISODES = 5
 TEST_EVERY = 1
 ENV = 'FrozenLake-v0'
-
+NB_STEPS_IF_FALL_HOLE = 200
 
 # #############################################################################
 #
@@ -79,7 +79,7 @@ def get_arguments():
 # #############################################################################
 
 
-def plot2(title, cumulative_reward, timesteps):
+def plot2(title, cumulative_reward_3d, timesteps_3d):
     '''Creates the two required plots: cumulative_reward and number of timesteps
     per episode.'''
 
@@ -89,13 +89,42 @@ def plot2(title, cumulative_reward, timesteps):
 
     fig.suptitle(title, fontsize=12)
 
-    plot_line_variance(axs[0], cumulative_reward)
+    cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis = 2))
+    cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
+    print("cumulative_reward_1d to do max reward per time step: ", cumulative_reward_1d)
+    #print(cumulative_reward_2d.shape)
+    plot_line_variance(axs[0], cumulative_reward_2d)
     axs[0].set_title('Cumulative reward')
 
-    plot_line_variance(axs[1], timesteps)
+    timesteps_2d = np.array(np.mean(timesteps_3d, axis=2))
+    timesteps_1d = np.array(np.min(np.min(timesteps_3d, axis=2), axis=0))
+    print("timesteps_1d to do min episode length per time step: ", timesteps_1d)
+    plot_line_variance(axs[1], timesteps_2d)
     axs[1].set_title('Timesteps per episode')
+    plt.show()
 
 
+
+def plot_line_variance(ax, data, gamma=1):
+    '''Plots the average data for each time step and draws a cloud
+    of the standard deviation around the average.
+
+    ax:     axis object where the plot will be drawn
+    data:   data of shape (num_trials, timesteps)
+    gamma:  (optional) scaling of the standard deviation around the average
+            if ommitted, gamma = 1.'''
+
+    avg = np.average(data, axis=0)
+    std = np.std(data, axis=0)
+
+    # ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
+    # ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
+    ax.fill_between(range(len(avg)),
+                    avg + gamma * std,
+                    avg - gamma * std,
+                    facecolor='red',
+                    alpha=0.2)
+    ax.plot(avg)
 
 # #############################################################################
 #
@@ -257,11 +286,14 @@ class Policy():
                 self.env.render()
 
             done = False
+
+            power_gamma = 1
             while not done and num_steps[episode] < max_steps:
                 num_steps[episode] += 1
                 action = self.pi[observation]
                 observation, reward, done, info = self.env.step(action)
-                cumulative_reward[episode] += reward
+                cumulative_reward[episode] += reward * power_gamma
+                power_gamma = power_gamma * self.gamma
 
                 if render:
                     print('Step {}: reward {}, cumulative reward: {}'.format(
@@ -271,11 +303,15 @@ class Policy():
                     print('-' * 80)
                     self.env.render()
 
+                if done and reward <= 0:
+                    num_steps[episode] = NB_STEPS_IF_FALL_HOLE
+
             # only count steps for wins
             # if reward <= 0:
             #     num_steps[episode] = np.nan
 
-        return np.mean(cumulative_reward), np.nanmean(num_steps)
+        #return np.mean(cumulative_reward), np.nanmean(num_steps)
+        return cumulative_reward, num_steps
 
     def _getvalue(self, state, action):
         '''For a given state and action, returns the value of that
@@ -342,10 +378,20 @@ def run(n_runs, policy, bValueIteration=False):
         rewards.append(reward)
         steps.append(num_steps)
 
-    print(rewards)
-    print(steps)
+    rewards= np.array(rewards)
+    steps = np.array(steps)
+    #print("rewards: ", rewards)
+    #print(rewards.shape)
+    #print("steps: ", steps)
+    #print(steps.shape)
     #plot(train)
+
+
     #plot(test)
+    plot2("Test plots", rewards, steps)
+
+
+
 
 
 def one_run(policy, bValueIteration=False):
