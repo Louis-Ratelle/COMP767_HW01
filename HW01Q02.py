@@ -8,11 +8,11 @@ SEED = None
 GAMMA = 0.9
 TOL = 1e-6
 RUNS = 5
-TRAINING_EPISODES = 10
+TRAINING_EPISODES = 5
 TESTING_EPISODES = 5
 TEST_EVERY = 1
 ENV = 'FrozenLake-v0'
-#NB_STEPS_IF_FALL_HOLE = 200
+MAX_STEPS = 200
 
 # #############################################################################
 #
@@ -68,6 +68,9 @@ def get_arguments():
     parser.add_argument('--test_every', type=int, default=TEST_EVERY,
                         help='Number of training iterations to execute before '
                         'each test. Default: ' + str(TEST_EVERY))
+    parser.add_argument('--max_steps', type=int, default=MAX_STEPS,
+                        help='Number of maximum steps allowed in a single '
+                        'episode. Default: ' + str(MAX_STEPS))
 
     return parser.parse_args()
 
@@ -154,7 +157,6 @@ class Policy():
         for s in range(env.observation_space.n):
             self.pi[s] = env.action_space.sample()
 
-
     def eval(self, bValueIteration=False):
         '''Evaluates the policy value for each state s in
         env.observation_space'''
@@ -207,6 +209,16 @@ class Policy():
         if self.bVerbose:
             print('pi: {}'.format(self.pi)) 
 
+        # run tests
+        if self.counter % test_every == 0:
+            for s in range(self.env.observation_space.n):
+                self.pi[s] = np.argmax(
+                    [self._getvalue(s, action) for action in range(self.env.action_space.n)])
+
+            reward, num_steps = self.test(testing_episodes)
+            tst_rewards.append(reward)
+            tst_steps.append(num_steps)
+
         if not stable:
             self.eval()
 
@@ -214,7 +226,21 @@ class Policy():
         '''Returns an estimation of the optimal policy by performing
         only one sweep (one update of each state) of policy evaluation.
 
-        output: an estimation of the optimal policy'''
+        output:
+        V[s]        : the optimal value of each state
+        pi[s]       : the optimal action for each state
+        trn_rewards : a list of arrays of rewards. The arrays have
+                      shape (training_episodes). The list has undetermined
+                      length (depending on the number of iterations)
+        trn_steps   : a list of arrays with number of steps. The arrays have
+                      shape (training_episodes). The list has undetermined
+                      length (depending on the number of iterations)
+        tst_rewards : a list of arrays of rewards. The arrays have
+                      shape (testing_episodes). The list has undetermined
+                      length (depending on the number of iterations)
+        tst_steps   : a list of arrays with number of steps. The arrays have
+                      shape (testing_episodes). The list has undetermined
+                      length (depending on the number of iterations)'''
 
         training_episodes = args.training_episodes
         testing_episodes = args.testing_episodes
@@ -223,8 +249,11 @@ class Policy():
         delta = np.infty
         i = 0
 
-        rewards = []
-        steps = []
+        trn_rewards = []
+        trn_steps = []
+
+        tst_rewards = []
+        tst_steps = []
 
         while delta > self.tol:
             delta = 0
@@ -247,6 +276,14 @@ class Policy():
             if self.bVerbose:
                 print('Step: {} V: {}'.format(i, self.V))
 
+            # get training results
+            for s in range(self.env.observation_space.n):
+                self.pi[s] = np.argmax(
+                    [self._getvalue(s, action) for action in range(self.env.action_space.n)])
+            reward, num_steps = self.test(training_episodes)
+            trn_rewards.append(reward)
+            trn_steps.append(num_steps)
+
             # run tests
             if i % test_every == 0:
                 for s in range(self.env.observation_space.n):
@@ -254,30 +291,47 @@ class Policy():
                         [self._getvalue(s, action) for action in range(self.env.action_space.n)])
 
                 reward, num_steps = self.test(testing_episodes)
-                rewards.append(reward)
-                steps.append(num_steps)
+                tst_rewards.append(reward)
+                tst_steps.append(num_steps)
 
         for s in range(self.env.observation_space.n):
             self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
 
-        # test again one last time
+        # test again in the end one last time
         reward, num_steps = self.test(testing_episodes)
-        rewards.append(reward)
-        steps.append(num_steps)
+        tst_rewards.append(reward)
+        tst_steps.append(num_steps)
 
         print('***** Finished value iteration in {} steps.'.format(i))
 
-        return self.V, self.pi, rewards, steps
+        return self.V, self.pi, trn_rewards, trn_steps, tst_rewards, tst_steps
 
-    def test(self, num_episodes=5, max_steps=200, render=False):
+    def test(self, num_episodes=5, render=False):
+        '''Tests the current policy a certain number
+        of times specified by num_episodes. Each episode
+        will abort if max_steps is exceeded.
 
+        Input:
+        num_episodes:       number of episodes to be executed
+        render:             if true, rendering of the environment
+                            will show the results of the applied policy
+
+        Output:
+        cumulative_reward:  array of shape (num_episodes) containing the
+                            cumulative reward generated by the policy
+        num_steps:          array of shape (num_episodes) containing the
+                            number of steps required for completing each
+                            episode with a win. If episode finishes with
+                            a loss or if max_steps is exceeded, then
+                            max_steps will be used.'''
+
+        max_steps = args.max_steps
         cumulative_reward = np.zeros(num_episodes)
         num_steps = np.zeros(num_episodes)
-        #if max_steps is None:
-            #max_steps = np.infty
 
         for episode in range(num_episodes):
             num_steps[episode] = 0
+            self.env.seed()
             observation = self.env.reset()
 
             if render:
@@ -288,12 +342,16 @@ class Policy():
 
             done = False
 
+            # initial discount factor
             power_gamma = 1
+
             while not done and num_steps[episode] < max_steps:
                 num_steps[episode] += 1
                 action = self.pi[observation]
                 observation, reward, done, info = self.env.step(action)
                 cumulative_reward[episode] += reward * power_gamma
+                
+                # cumulate discount factor
                 power_gamma = power_gamma * self.gamma
 
                 if render:
@@ -304,14 +362,11 @@ class Policy():
                     print('-' * 80)
                     self.env.render()
 
+                # if episode finished without a win
                 if done and reward <= 0:
                     num_steps[episode] = max_steps
 
-            # only count steps for wins
-            # if reward <= 0:
-            #     num_steps[episode] = np.nan
-
-        #return np.mean(cumulative_reward), np.nanmean(num_steps)
+        # return np.mean(cumulative_reward), np.nanmean(num_steps)
         return cumulative_reward, num_steps
 
     def _getvalue(self, state, action):
@@ -360,10 +415,14 @@ def render_policy(env, pi, num_episodes=20, max_steps=100):
 # Main
 #
 # #############################################################################
+
+
 def run(n_runs, policy, bValueIteration=False):
 
-    rewards = []
-    steps = []
+    trn_rewards = []
+    trn_steps = []
+    tst_rewards = []
+    tst_steps = []
 
     env = policy.env
     gamma = policy.gamma
@@ -373,39 +432,58 @@ def run(n_runs, policy, bValueIteration=False):
     for run in range(n_runs):
         np.random.seed(np.random.randint(0, 2**32 - 1))
         policy.__init__(env, gamma, bVerbose, tol)
-        print('Run {}'.format(run + 1))
+        print('Run {}:'.format(run + 1))
 
-        V, pi, reward, num_steps = one_run(policy, bValueIteration)
-        rewards.append(reward)
-        steps.append(num_steps)
+        V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = one_run(policy)
+        trn_rewards.append(trn_reward)
+        trn_steps.append(trn_numsteps)
+        tst_rewards.append(tst_reward)
+        tst_steps.append(tst_numsteps)
 
-    rewards= np.array(rewards)
-    steps = np.array(steps)
-    #print("rewards: ", rewards)
-    #print(rewards.shape)
-    #print("steps: ", steps)
-    #print(steps.shape)
-    #plot(train)
+    trn_rewards = np.array(trn_rewards)
+    trn_steps = np.array(trn_steps)
+    tst_rewards = np.array(tst_rewards)
+    tst_steps = np.array(tst_steps)
 
-
-    #plot(test)
-    plot2("Test plots", rewards, steps)
+    plot2('Traning plots', trn_rewards, trn_steps)
+    plot2('Test plots', tst_rewards, tst_steps)
 
 
+def one_run(policy):
+    '''Executes one run of the policy (either policy or value
+    iteration).
 
+    Input:
+    policy      : the policy to be used
 
+    Output:
+        V[s]        : the optimal value of each state
+        pi[s]       : the optimal action for each state
+        trn_rewards : a list of arrays of rewards. The arrays have
+                      shape (training_episodes). The list has undetermined
+                      length (depending on the number of iterations)
+        trn_steps   : a list of arrays with number of steps. The arrays have
+                      shape (training_episodes). The list has undetermined
+                      length (depending on the number of iterations)
+        tst_rewards : a list of arrays of rewards. The arrays have
+                      shape (testing_episodes). The list has undetermined
+                      length (depending on the number of iterations)
+        tst_steps   : a list of arrays with number of steps. The arrays have
+                      shape (testing_episodes). The list has undetermined
+                      length (depending on the number of iterations)'''
 
-def one_run(policy, bValueIteration=False):
+    bValueIteration = args.value_iteration
 
     if bValueIteration:
-        V, pi, rewards, steps = policy.value_iteration()
+        V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = policy.value_iteration()
     else:
-        V, pi, rewards, steps = policy.eval()
+        V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = policy.eval()
 
-    return V, pi, rewards, steps
+    return V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps
 
 
 args = get_arguments()
+
 
 def main():
 

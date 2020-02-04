@@ -49,10 +49,10 @@ def get_arguments():
                         'the ensemble of training steps and testing steps. '
                         'Default: ' + str(STEPS_PER_RUN))
     parser.add_argument('--training_steps', type=int, default=TRAINING_STEPS,
-                        help='Number of training steps to be executed.'
+                        help='Number of training steps to be executed. '
                         'Default: ' + str(TRAINING_STEPS))
     parser.add_argument('--testing_steps', type=int, default=TESTING_STEPS,
-                        help='Number of testing steps to be executed.'
+                        help='Number of testing steps to be executed. '
                         'Default: ' + str(TESTING_STEPS))
 
     return parser.parse_args()
@@ -441,7 +441,7 @@ class Bandit():
         test_steps:         number of test steps'''
 
         # randomly seeds the generator at the start of each run
-        np.random.seed(idx)
+        np.random.seed(None)
 
         # initialise run
         self.agent.reset(self)
