@@ -12,7 +12,7 @@ TRAINING_EPISODES = 10
 TESTING_EPISODES = 5
 TEST_EVERY = 1
 ENV = 'FrozenLake-v0'
-NB_STEPS_IF_FALL_HOLE = 200
+#NB_STEPS_IF_FALL_HOLE = 200
 
 # #############################################################################
 #
@@ -89,6 +89,7 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
     fig.suptitle(title, fontsize=12)
 
+    print(cumulative_reward_3d.shape)
     cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis = 2))
     cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
     print("cumulative_reward_1d to do max reward per time step: ", cumulative_reward_1d)
@@ -268,12 +269,12 @@ class Policy():
 
         return self.V, self.pi, rewards, steps
 
-    def test(self, num_episodes=5, max_steps=None, render=False):
+    def test(self, num_episodes=5, max_steps=200, render=False):
 
         cumulative_reward = np.zeros(num_episodes)
         num_steps = np.zeros(num_episodes)
-        if max_steps is None:
-            max_steps = np.infty
+        #if max_steps is None:
+            #max_steps = np.infty
 
         for episode in range(num_episodes):
             num_steps[episode] = 0
@@ -304,7 +305,7 @@ class Policy():
                     self.env.render()
 
                 if done and reward <= 0:
-                    num_steps[episode] = NB_STEPS_IF_FALL_HOLE
+                    num_steps[episode] = max_steps
 
             # only count steps for wins
             # if reward <= 0:
