@@ -441,7 +441,7 @@ class Bandit():
         test_steps:         number of test steps'''
 
         # randomly seeds the generator at the start of each run
-        np.random.seed(None)
+        np.random.seed(np.random.randint(0, 2**32 - 1))
 
         # initialise run
         self.agent.reset(self)
