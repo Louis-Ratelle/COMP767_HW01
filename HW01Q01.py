@@ -49,10 +49,10 @@ def get_arguments():
                         'the ensemble of training steps and testing steps. '
                         'Default: ' + str(STEPS_PER_RUN))
     parser.add_argument('--training_steps', type=int, default=TRAINING_STEPS,
-                        help='Number of training steps to be executed.'
+                        help='Number of training steps to be executed. '
                         'Default: ' + str(TRAINING_STEPS))
     parser.add_argument('--testing_steps', type=int, default=TESTING_STEPS,
-                        help='Number of testing steps to be executed.'
+                        help='Number of testing steps to be executed. '
                         'Default: ' + str(TESTING_STEPS))
 
     return parser.parse_args()
@@ -103,13 +103,13 @@ def plot_line_variance(ax, data, gamma=1):
     avg = np.average(data, axis=0)
     std = np.std(data, axis=0)
 
-    ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
-    ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
+    # ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
+    # ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
     ax.fill_between(range(len(avg)),
                     avg + gamma * std,
                     avg - gamma * std,
                     facecolor='red',
-                    alpha=0.1)
+                    alpha=0.2)
     ax.plot(avg)
 
 
@@ -427,9 +427,9 @@ class Bandit():
             # print('Run {:2d} completed in {:2f} seconds.'.format(i + 1, t))
 
         t = time() - t0
-        print('{} runs completed in {:2f} seconds.'.format(num_runs, t))
+        print('{} completed {} runs in {:.2f} seconds.'.format(self.agent, num_runs, t))
 
-        return self.training_return
+        return np.average(self.training_return, axis=0)
 
     def _onerun(self, idx, num_steps, training_steps, testing_steps):
         '''Executes one run of the bandit algorithm. One run executes
@@ -441,7 +441,7 @@ class Bandit():
         test_steps:         number of test steps'''
 
         # randomly seeds the generator at the start of each run
-        np.random.seed(idx)
+        np.random.seed(np.random.randint(0, 2**32 - 1))
 
         # initialise run
         self.agent.reset(self)
