@@ -10,7 +10,7 @@ TOL = 1e-6
 RUNS = 5
 TRAINING_EPISODES = 5
 TESTING_EPISODES = 5
-TEST_EVERY = 1
+TEST_EVERY = 10
 ENV = 'FrozenLake-v0'
 MAX_STEPS = 200
 
@@ -93,7 +93,7 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
     fig.suptitle(title, fontsize=12)
 
-    print(cumulative_reward_3d.shape)
+    #print(cumulative_reward_3d.shape)
     cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis = 2))
     # cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
 
@@ -300,12 +300,13 @@ class Policy():
                 print('Step: {} V: {}'.format(i, self.V))
 
             # get training results
-            for s in range(self.env.observation_space.n):
-                self.pi[s] = np.argmax(
-                    [self._getvalue(s, action) for action in range(self.env.action_space.n)])
-            reward, num_steps = self.test(training_episodes)
-            trn_rewards.append(reward)
-            trn_steps.append(num_steps)
+            if i % test_every == 0:
+                for s in range(self.env.observation_space.n):
+                    self.pi[s] = np.argmax(
+                        [self._getvalue(s, action) for action in range(self.env.action_space.n)])
+                reward, num_steps = self.test(training_episodes)
+                trn_rewards.append(reward)
+                trn_steps.append(num_steps)
 
             # run tests
             if i % test_every == 0:
@@ -319,6 +320,12 @@ class Policy():
 
         for s in range(self.env.observation_space.n):
             self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
+
+        # train again in the end one last time
+        reward, num_steps = self.test(testing_episodes)
+        trn_rewards.append(reward)
+        trn_steps.append(num_steps)
+
 
         # test again in the end one last time
         reward, num_steps = self.test(testing_episodes)
