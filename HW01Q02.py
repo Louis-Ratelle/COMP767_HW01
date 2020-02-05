@@ -447,8 +447,8 @@ def run(n_runs, policy, bValueIteration=False):
     tst_rewards = np.array(tst_rewards)
     tst_steps = np.array(tst_steps)
 
-   # plot2('Traning plots', trn_rewards, trn_steps)
-   # plot2('Test plots', tst_rewards, tst_steps)
+    plot2('Traning plots', trn_rewards, trn_steps)
+    plot2('Test plots', tst_rewards, tst_steps)
 
 
     # max_len_trn_r = 0
