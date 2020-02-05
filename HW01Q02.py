@@ -301,6 +301,12 @@ class Policy():
         for s in range(self.env.observation_space.n):
             self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
 
+        # train again in the end one last time
+        reward, num_steps = self.test(testing_episodes)
+        trn_rewards.append(reward)
+        trn_steps.append(num_steps)
+
+
         # test again in the end one last time
         reward, num_steps = self.test(testing_episodes)
         tst_rewards.append(reward)
