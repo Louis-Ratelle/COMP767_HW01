@@ -175,8 +175,10 @@ class Policy():
         if self.bVerbose:
             print('V: {}\n'.format(self.V))
         self.iterate()
-        print('***** Policy iteration completed in {} steps.'.format(self.counter))
-        return self.V, self.pi
+
+        return self.V, self.pi, \
+            self.trn_rewards, self.trn_steps, \
+            self.tst_rewards, self.tst_steps
 
     def iterate(self):
         '''Iterates policy evaluation to find an optimal policy and
@@ -207,17 +209,18 @@ class Policy():
                 stable = False
 
         if self.bVerbose:
-            print('pi: {}'.format(self.pi)) 
+            print('pi: {}'.format(self.pi))
+
+        # get training results
+        reward, num_steps = self.test(args.training_episodes)
+        self.trn_rewards.append(reward)
+        self.trn_steps.append(num_steps)
 
         # run tests
-        if self.counter % test_every == 0:
-            for s in range(self.env.observation_space.n):
-                self.pi[s] = np.argmax(
-                    [self._getvalue(s, action) for action in range(self.env.action_space.n)])
-
-            reward, num_steps = self.test(testing_episodes)
-            tst_rewards.append(reward)
-            tst_steps.append(num_steps)
+        if self.counter % args.test_every == 0:
+            reward, num_steps = self.test(args.testing_episodes)
+            self.tst_rewards.append(reward)
+            self.tst_steps.append(num_steps)
 
         if not stable:
             self.eval()
@@ -350,7 +353,7 @@ class Policy():
                 action = self.pi[observation]
                 observation, reward, done, info = self.env.step(action)
                 cumulative_reward[episode] += reward * power_gamma
-                
+
                 # cumulate discount factor
                 power_gamma = power_gamma * self.gamma
 
@@ -418,7 +421,6 @@ def render_policy(env, pi, num_episodes=20, max_steps=100):
 
 
 def run(n_runs, policy, bValueIteration=False):
-
     trn_rewards = []
     trn_steps = []
     tst_rewards = []
@@ -445,8 +447,61 @@ def run(n_runs, policy, bValueIteration=False):
     tst_rewards = np.array(tst_rewards)
     tst_steps = np.array(tst_steps)
 
-    plot2('Traning plots', trn_rewards, trn_steps)
-    plot2('Test plots', tst_rewards, tst_steps)
+   # plot2('Traning plots', trn_rewards, trn_steps)
+   # plot2('Test plots', tst_rewards, tst_steps)
+
+
+    # max_len_trn_r = 0
+    # max_len_trn_s = 0
+    # max_len_tst_r = 0
+    # max_len_tst_s = 0
+
+    # trn_rewards = np.ma.empty((n_runs, args.training_episodes, 1))
+    # trn_steps = np.ma.empty((n_runs, args.training_episodes, 1))
+    # tst_rewards = np.ma.empty((n_runs, args.testing_episodes, 1))
+    # tst_steps = np.ma.empty((n_runs, args.testing_episodes, 1))
+
+    # env = policy.env
+    # gamma = policy.gamma
+    # bVerbose = policy.bVerbose
+    # tol = policy.tol
+
+    # for run in range(n_runs):
+    #     # seeds the generator and initialises the policy
+    #     np.random.seed(np.random.randint(0, 2**32 - 1))
+    #     policy.__init__(env, gamma, bVerbose, tol)
+    #     print('Run {}:'.format(run + 1))
+
+    #     V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = one_run(policy)
+
+    #     # save maximal lengths (maximum number of iterations)
+    #     max_len_trn_r = max(max_len_trn_r, len(trn_reward))
+    #     max_len_trn_s = max(max_len_trn_s, len(trn_numsteps))
+    #     max_len_tst_r = max(max_len_tst_r, len(tst_reward))
+    #     max_len_tst_s = max(max_len_tst_s, len(tst_numsteps))
+
+    #     if trn_rewards.shape[-1] < max_len_trn_r:
+    #         trn_rewards.reshape((n_runs, args.training_episodes, max_len_trn_r))
+
+    #     if trn_steps.shape[-1] < max_len_trn_s:
+    #         trn_steps.reshape((n_runs, args.training_episodes, max_len_trn_s))
+
+    #     if tst_rewards.shape[-1] < max_len_tst_r:
+    #         tst_rewards.reshape((n_runs, args.testing_episodes, max_len_tst_r))
+
+    #     if tst_steps.shape[-1] < max_len_tst_s:
+    #         tst_steps.reshape((n_runs, args.testing_episodes, max_len_tst_s))
+
+    #     trn_rewards[run, :args.training_episodes, :len(trn_reward)] = trn_reward
+
+    # print('trn_rewards', trn_rewards)
+    # print(trn_rewards.shape)
+    # print('trn_steps', trn_steps)
+    # print('tst_rewards', tst_rewards)
+    # print('tst_steps', tst_steps)
+
+    # #plot2('Traning plots', trn_rewards, trn_steps)
+    # #plot2('Test plots', tst_rewards, tst_steps)
 
 
 def one_run(policy):
@@ -477,7 +532,14 @@ def one_run(policy):
     if bValueIteration:
         V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = policy.value_iteration()
     else:
+        policy.trn_rewards = []
+        policy.trn_steps = []
+
+        policy.tst_rewards = []
+        policy.tst_steps = []
+
         V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = policy.eval()
+        print('***** Policy iteration completed.')
 
     return V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps
 
