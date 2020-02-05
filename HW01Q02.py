@@ -280,12 +280,13 @@ class Policy():
                 print('Step: {} V: {}'.format(i, self.V))
 
             # get training results
-            for s in range(self.env.observation_space.n):
-                self.pi[s] = np.argmax(
-                    [self._getvalue(s, action) for action in range(self.env.action_space.n)])
-            reward, num_steps = self.test(training_episodes)
-            trn_rewards.append(reward)
-            trn_steps.append(num_steps)
+            if i % test_every == 0:
+                for s in range(self.env.observation_space.n):
+                    self.pi[s] = np.argmax(
+                        [self._getvalue(s, action) for action in range(self.env.action_space.n)])
+                reward, num_steps = self.test(training_episodes)
+                trn_rewards.append(reward)
+                trn_steps.append(num_steps)
 
             # run tests
             if i % test_every == 0:
