@@ -20,6 +20,7 @@ MAX_STEPS = 200
 #
 # #############################################################################
 
+
 def get_arguments():
     def _str_to_bool(s):
         '''Convert string to boolean (in argparse context)'''
@@ -94,41 +95,60 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
     print(cumulative_reward_3d.shape)
     cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis = 2))
-    cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
-    print("cumulative_reward_1d to do max reward per time step: ", cumulative_reward_1d)
-    #print(cumulative_reward_2d.shape)
+    # cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
+
     plot_line_variance(axs[0], cumulative_reward_2d)
+    plot_min_max(axs[0], cumulative_reward_2d)
     axs[0].set_title('Cumulative reward')
+    axs[0].set_xlabel('Iteration #')
 
     timesteps_2d = np.array(np.mean(timesteps_3d, axis=2))
-    timesteps_1d = np.array(np.min(np.min(timesteps_3d, axis=2), axis=0))
-    print("timesteps_1d to do min episode length per time step: ", timesteps_1d)
+    # timesteps_1d = np.array(np.min(np.min(timesteps_3d, axis=2), axis=0))
+
     plot_line_variance(axs[1], timesteps_2d)
+    plot_min_max(axs[1], timesteps_2d)
     axs[1].set_title('Timesteps per episode')
+    axs[1].set_xlabel('Iteration #')
     plt.show()
 
 
 
-def plot_line_variance(ax, data, gamma=1):
+def plot_line_variance(ax, data, delta=1):
     '''Plots the average data for each time step and draws a cloud
     of the standard deviation around the average.
 
     ax:     axis object where the plot will be drawn
     data:   data of shape (num_trials, timesteps)
-    gamma:  (optional) scaling of the standard deviation around the average
-            if ommitted, gamma = 1.'''
+    delta:  (optional) scaling of the standard deviation around the average
+            if ommitted, delta = 1.'''
 
     avg = np.average(data, axis=0)
     std = np.std(data, axis=0)
 
-    # ax.plot(avg + gamma * std, 'r--', linewidth=0.5)
-    # ax.plot(avg - gamma * std, 'r--', linewidth=0.5)
+    # ax.plot(avg + delta * std, 'r--', linewidth=0.5)
+    # ax.plot(avg - delta * std, 'r--', linewidth=0.5)
     ax.fill_between(range(len(avg)),
-                    avg + gamma * std,
-                    avg - gamma * std,
+                    avg + delta * std,
+                    avg - delta * std,
                     facecolor='red',
                     alpha=0.2)
     ax.plot(avg)
+
+
+def plot_min_max(ax, data):
+    '''Plots the average data for each time step and draws a cloud
+    of the standard deviation around the average.
+
+    ax:     axis object where the plot will be drawn
+    data:   data of shape (num_trials, timesteps)
+    delta:  (optional) scaling of the standard deviation around the average
+            if ommitted, delta = 1.'''
+
+    min = np.min(data, axis=0)
+    max = np.max(data, axis=0)
+
+    ax.plot(min, 'r--', linewidth=0.5)
+    ax.plot(max, 'r--', linewidth=0.5)
 
 # #############################################################################
 #
@@ -421,10 +441,15 @@ def render_policy(env, pi, num_episodes=20, max_steps=100):
 
 
 def run(n_runs, policy, bValueIteration=False):
-    trn_rewards = []
-    trn_steps = []
-    tst_rewards = []
-    tst_steps = []
+    lst_trn_rewards = []
+    lst_trn_steps = []
+    lst_tst_rewards = []
+    lst_tst_steps = []
+
+    max_len_trn_r = 0
+    max_len_trn_s = 0
+    max_len_tst_r = 0
+    max_len_tst_s = 0
 
     env = policy.env
     gamma = policy.gamma
@@ -437,19 +462,37 @@ def run(n_runs, policy, bValueIteration=False):
         print('Run {}:'.format(run + 1))
 
         V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = one_run(policy)
-        trn_rewards.append(trn_reward)
-        trn_steps.append(trn_numsteps)
-        tst_rewards.append(tst_reward)
-        tst_steps.append(tst_numsteps)
+        lst_trn_rewards.append(trn_reward)
+        lst_trn_steps.append(trn_numsteps)
+        lst_tst_rewards.append(tst_reward)
+        lst_tst_steps.append(tst_numsteps)
 
-    trn_rewards = np.array(trn_rewards)
-    trn_steps = np.array(trn_steps)
-    tst_rewards = np.array(tst_rewards)
-    tst_steps = np.array(tst_steps)
+        max_len_trn_r = max(max_len_trn_r, len(trn_reward))
+        max_len_trn_s = max(max_len_trn_s, len(trn_numsteps))
+        max_len_tst_r = max(max_len_tst_r, len(tst_reward))
+        max_len_tst_s = max(max_len_tst_s, len(tst_numsteps))
 
-   # plot2('Traning plots', trn_rewards, trn_steps)
-   # plot2('Test plots', tst_rewards, tst_steps)
+    trn_rewards = fill_ma(lst_trn_rewards, (n_runs, max_len_trn_r, args.training_episodes))
+    trn_steps = fill_ma(lst_trn_steps, (n_runs, max_len_trn_s, args.training_episodes))
+    tst_rewards = fill_ma(lst_tst_rewards, (n_runs, max_len_tst_r, args.testing_episodes))
+    tst_steps = fill_ma(lst_tst_steps, (n_runs, max_len_tst_s, args.testing_episodes))
+    # trn_rewards = np.ma.empty((n_runs, max_len_trn_r, args.training_episodes))
+    # for run in range(n_runs):
+    #     for i in range(len(lst_trn_rewards)):
+    #         trn_rewards[run, i, :args.training_episodes] = lst_trn_rewards[run][i]
 
+    plot2('Traning plots', trn_rewards, trn_steps)
+    plot2('Test plots', tst_rewards, tst_steps)
+
+
+def fill_ma(lst, shape):
+    ma = np.ma.empty(shape)
+    ma.mask = True
+    for i in range(shape[0]):
+        for j in range(len(lst[i])):
+            ma[i, j, :shape[2]] = lst[i][j]
+
+    return ma
 
     # max_len_trn_r = 0
     # max_len_trn_s = 0
