@@ -2,6 +2,7 @@ import numpy as np
 import gym
 import argparse
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 #from HW01Q01 import plot_line_variance
 
 SEED = None
@@ -93,24 +94,25 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
     fig.suptitle(title, fontsize=12)
 
-    #print(cumulative_reward_3d.shape)
-    cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis = 2))
-    # cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
 
+    # rewards
+    cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis=2))
+    # cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
     plot_line_variance(axs[0], cumulative_reward_2d)
     plot_min_max(axs[0], cumulative_reward_2d)
     axs[0].set_title('Cumulative reward')
     axs[0].set_xlabel('Iteration #')
 
+
+    # timesteps
     timesteps_2d = np.array(np.mean(timesteps_3d, axis=2))
     # timesteps_1d = np.array(np.min(np.min(timesteps_3d, axis=2), axis=0))
-
     plot_line_variance(axs[1], timesteps_2d)
     plot_min_max(axs[1], timesteps_2d)
     axs[1].set_title('Timesteps per episode')
     axs[1].set_xlabel('Iteration #')
-    plt.show()
 
+    plt.show()
 
 
 def plot_line_variance(ax, data, delta=1):
@@ -300,13 +302,12 @@ class Policy():
                 print('Step: {} V: {}'.format(i, self.V))
 
             # get training results
-            if i % test_every == 0:
-                for s in range(self.env.observation_space.n):
-                    self.pi[s] = np.argmax(
-                        [self._getvalue(s, action) for action in range(self.env.action_space.n)])
-                reward, num_steps = self.test(training_episodes)
-                trn_rewards.append(reward)
-                trn_steps.append(num_steps)
+            for s in range(self.env.observation_space.n):
+                self.pi[s] = np.argmax(
+                    [self._getvalue(s, action) for action in range(self.env.action_space.n)])
+            reward, num_steps = self.test(training_episodes)
+            trn_rewards.append(reward)
+            trn_steps.append(num_steps)
 
             # run tests
             if i % test_every == 0:
@@ -320,12 +321,6 @@ class Policy():
 
         for s in range(self.env.observation_space.n):
             self.pi[s] = np.argmax([self._getvalue(s, action) for action in range(self.env.action_space.n)])
-
-        # train again in the end one last time
-        reward, num_steps = self.test(testing_episodes)
-        trn_rewards.append(reward)
-        trn_steps.append(num_steps)
-
 
         # test again in the end one last time
         reward, num_steps = self.test(testing_episodes)
@@ -483,75 +478,40 @@ def run(n_runs, policy, bValueIteration=False):
     trn_steps = fill_ma(lst_trn_steps, (n_runs, max_len_trn_s, args.training_episodes))
     tst_rewards = fill_ma(lst_tst_rewards, (n_runs, max_len_tst_r, args.testing_episodes))
     tst_steps = fill_ma(lst_tst_steps, (n_runs, max_len_tst_s, args.testing_episodes))
-    # trn_rewards = np.ma.empty((n_runs, max_len_trn_r, args.training_episodes))
-    # for run in range(n_runs):
-    #     for i in range(len(lst_trn_rewards)):
-    #         trn_rewards[run, i, :args.training_episodes] = lst_trn_rewards[run][i]
 
     plot2('Traning plots', trn_rewards, trn_steps)
     plot2('Test plots', tst_rewards, tst_steps)
 
 
 def fill_ma(lst, shape):
+    '''Creates a masked array to deal with runs of different lengths.
+    Each run may have a different number of iterations. Masked arrays
+    allow calculating averages and standard deviation among missing
+    elements.
+
+    Input:
+    lst     : list of lists. For each run, the list has one element
+              which is itself a list with elements equal to the number
+              of iterations in the run. Each element of that second list
+              is an array of length equal to the number of episodes in
+              the iteration.
+    shape   : tuple of (number of runs, number of maximum iterations,
+              number of episodes)
+
+    Output:
+    ma      : masked array of shape (shape)'''
+
     ma = np.ma.empty(shape)
     ma.mask = True
+
+    # for each run
     for i in range(shape[0]):
+        # for each iteration
         for j in range(len(lst[i])):
+            # each episode is equal to the episode results
             ma[i, j, :shape[2]] = lst[i][j]
 
     return ma
-
-    # max_len_trn_r = 0
-    # max_len_trn_s = 0
-    # max_len_tst_r = 0
-    # max_len_tst_s = 0
-
-    # trn_rewards = np.ma.empty((n_runs, args.training_episodes, 1))
-    # trn_steps = np.ma.empty((n_runs, args.training_episodes, 1))
-    # tst_rewards = np.ma.empty((n_runs, args.testing_episodes, 1))
-    # tst_steps = np.ma.empty((n_runs, args.testing_episodes, 1))
-
-    # env = policy.env
-    # gamma = policy.gamma
-    # bVerbose = policy.bVerbose
-    # tol = policy.tol
-
-    # for run in range(n_runs):
-    #     # seeds the generator and initialises the policy
-    #     np.random.seed(np.random.randint(0, 2**32 - 1))
-    #     policy.__init__(env, gamma, bVerbose, tol)
-    #     print('Run {}:'.format(run + 1))
-
-    #     V, pi, trn_reward, trn_numsteps, tst_reward, tst_numsteps = one_run(policy)
-
-    #     # save maximal lengths (maximum number of iterations)
-    #     max_len_trn_r = max(max_len_trn_r, len(trn_reward))
-    #     max_len_trn_s = max(max_len_trn_s, len(trn_numsteps))
-    #     max_len_tst_r = max(max_len_tst_r, len(tst_reward))
-    #     max_len_tst_s = max(max_len_tst_s, len(tst_numsteps))
-
-    #     if trn_rewards.shape[-1] < max_len_trn_r:
-    #         trn_rewards.reshape((n_runs, args.training_episodes, max_len_trn_r))
-
-    #     if trn_steps.shape[-1] < max_len_trn_s:
-    #         trn_steps.reshape((n_runs, args.training_episodes, max_len_trn_s))
-
-    #     if tst_rewards.shape[-1] < max_len_tst_r:
-    #         tst_rewards.reshape((n_runs, args.testing_episodes, max_len_tst_r))
-
-    #     if tst_steps.shape[-1] < max_len_tst_s:
-    #         tst_steps.reshape((n_runs, args.testing_episodes, max_len_tst_s))
-
-    #     trn_rewards[run, :args.training_episodes, :len(trn_reward)] = trn_reward
-
-    # print('trn_rewards', trn_rewards)
-    # print(trn_rewards.shape)
-    # print('trn_steps', trn_steps)
-    # print('tst_rewards', tst_rewards)
-    # print('tst_steps', tst_steps)
-
-    # #plot2('Traning plots', trn_rewards, trn_steps)
-    # #plot2('Test plots', tst_rewards, tst_steps)
 
 
 def one_run(policy):
