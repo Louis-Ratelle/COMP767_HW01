@@ -92,7 +92,7 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
     fig.suptitle(title, fontsize=12)
 
-    print(cumulative_reward_3d.shape)
+    #print(cumulative_reward_3d.shape)
     cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis = 2))
     cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
     #print("cumulative_reward_1d to do max reward per time step: ", cumulative_reward_1d)
