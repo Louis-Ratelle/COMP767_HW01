@@ -96,7 +96,7 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
 
     # rewards
-    cumulative_reward_2d = np.array(np.mean(cumulative_reward_3d, axis=2))
+    cumulative_reward_2d = np.ma.mean(cumulative_reward_3d, axis=2)
     # cumulative_reward_1d = np.array(np.max(np.max(cumulative_reward_3d, axis=2),axis=0))
     plot_line_variance(axs[0], cumulative_reward_2d)
     plot_min_max(axs[0], cumulative_reward_2d)
@@ -105,7 +105,7 @@ def plot2(title, cumulative_reward_3d, timesteps_3d):
 
 
     # timesteps
-    timesteps_2d = np.array(np.mean(timesteps_3d, axis=2))
+    timesteps_2d = np.ma.mean(timesteps_3d, axis=2)
     # timesteps_1d = np.array(np.min(np.min(timesteps_3d, axis=2), axis=0))
     plot_line_variance(axs[1], timesteps_2d)
     plot_min_max(axs[1], timesteps_2d)
@@ -124,8 +124,8 @@ def plot_line_variance(ax, data, delta=1):
     delta:  (optional) scaling of the standard deviation around the average
             if ommitted, delta = 1.'''
 
-    avg = np.average(data, axis=0)
-    std = np.std(data, axis=0)
+    avg = np.ma.average(data, axis=0)
+    std = np.ma.std(data, axis=0)
 
     # ax.plot(avg + delta * std, 'r--', linewidth=0.5)
     # ax.plot(avg - delta * std, 'r--', linewidth=0.5)
@@ -146,8 +146,8 @@ def plot_min_max(ax, data):
     delta:  (optional) scaling of the standard deviation around the average
             if ommitted, delta = 1.'''
 
-    min = np.min(data, axis=0)
-    max = np.max(data, axis=0)
+    min = np.ma.min(data, axis=0)
+    max = np.ma.max(data, axis=0)
 
     ax.plot(min, 'r--', linewidth=0.5)
     ax.plot(max, 'r--', linewidth=0.5)
@@ -375,7 +375,6 @@ class Policy():
                 action = self.pi[observation]
                 observation, reward, done, info = self.env.step(action)
                 cumulative_reward[episode] += reward * power_gamma
-
                 # cumulate discount factor
                 power_gamma = power_gamma * self.gamma
 
